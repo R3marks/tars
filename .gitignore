@@ -1,0 +1,111 @@
+.vscode
+node_modules
+node_modules
+
+tars-front-end/build
+tars-front-end/node_modules
+
+tars-front-end/tari/.vscode
+tars-front-end/tari/node_modules
+
+# Replicated from tars-front-end/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+tars-front-end/node_modules
+tars-front-end/.pnp
+tars-front-end/.pnp.js
+
+# testing
+tars-front-end/coverage
+
+# production
+tars-front-end/build
+
+# misc
+tars-front-end/.DS_Store
+tars-front-end/.env.local
+tars-front-end/.env.development.local
+tars-front-end/.env.test.local
+tars-front-end/.env.production.local
+
+tars-front-end/npm-debug.log*
+tars-front-end/yarn-debug.log*
+tars-front-end/yarn-error.log*
+
+# Original under tars-front-end/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# replicated from tars-front-end/tari/
+# Logs
+tars-front-end/tari/logs
+tars-front-end/tari/*.log
+tars-front-end/tari/npm-debug.log*
+tars-front-end/tari/yarn-debug.log*
+tars-front-end/tari/yarn-error.log*
+tars-front-end/tari/pnpm-debug.log*
+tars-front-end/tari/lerna-debug.log*
+
+tars-front-end/tari/node_modules
+tars-front-end/tari/dist
+tars-front-end/tari/dist-ssr
+tars-front-end/tari/*.local
+
+# Editor directories and files
+tars-front-end/tari/.vscode/*
+tars-front-end/tari/!.vscode/extensions.json
+tars-front-end/tari/.idea
+tars-front-end/tari/.DS_Store
+tars-front-end/tari/*.suo
+tars-front-end/tari/*.ntvs*
+tars-front-end/tari/*.njsproj
+tars-front-end/tari/*.sln
+tars-front-end/tari/*.sw?
+
+# Original under tars-front-end\tari\
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

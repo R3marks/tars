@@ -1,0 +1,73 @@
+/* .input-container {
+  display: flex;
+  justify-content: space-between;
+  width: 80%;
+  max-width: 600px;
+  background-color: #fff;
+  border-radius: 5px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin: 20px auto;
+  padding: 5px; /* Add padding to the container */
+/* } */
+
+.input-container {
+    display: flex;
+    justify-content: space-between; /* Center children horizontally */
+    align-items: center; /* Center children vertically */
+    width: 80%;
+    height: 20%;
+    gap: 10px;
+}
+
+/* .input-container textarea {
+  flex: 8;
+  padding: 12px 16px;
+  font-size: 16px;
+  border: none;
+  background-color: blue;
+  border-right: 1px solid #e0e0e0;
+  outline: none;
+  height: 4rem;
+  overflow-y: visible; /* Enable vertical scrolling if necessary */
+/* } */
+
+.input-textarea {
+    width: 80%;
+    border-radius: 15px;
+    padding: 25px;
+    height: 20%;
+}
+
+.input-button {
+  background-color: #3498db;
+  color: white;
+  padding: 12px;
+  border-radius: 15px;
+  font-size: large;
+  justify-self: start;
+  align-self: end;
+}
+
+/* .input-container button[type="submit"] {
+  flex: 2;
+  background-color: #3498db;
+  color: white;
+  border: none;
+  cursor: pointer;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box; /* Include padding and borders in the element's total size */
+/* } */ 
+
+.input-container button[type="submit"]:hover {
+  background-color: #2980b9;
+}
+
+/* Responsive Design for Mobile */
+@media (max-width: 768px) {
+  .input-container {
+    margin-bottom: 10px; /* Add more space between elements on mobile */
+  }
+}
