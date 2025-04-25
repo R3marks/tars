@@ -1,12 +1,13 @@
 .app {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	background-color: #282c34;
 }
 
 .app-header {
-  background-color: #282c34;
-  color: white;
-  text-align: center;
+	background-color: #282c34;
+	color: white;
+	text-align: center;
 }

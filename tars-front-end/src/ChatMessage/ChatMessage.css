@@ -1,0 +1,18 @@
+.chat-message {
+	flex-shrink: 0;
+	flex-grow: 0;
+	height: auto;
+	overflow-wrap: break-word;
+	max-width: 100%;
+	margin-bottom: 15px;
+}
+
+.chat-window-input {
+	text-align: left;
+	color: whitesmoke;
+}
+
+.chat-window-output {
+	text-align: right;
+	color: lightseagreen;
+}

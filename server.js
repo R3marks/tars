@@ -87,7 +87,7 @@ router.post('/ask-query', async (req, res) => {
 
   try {
     const response = await ollama.chat({
-      model: 'llama3.2:3b',
+      model: 'gemma3:4b',
       messages: conversations[sessionId], // Full conversation history
     });
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import './ChatWindow.css';
+import ChatMessage from '../ChatMessage/ChatMessage.js'
 
 export default function ChatWindow({ data }) {
   const chatWindowRef = useRef(null);
@@ -14,10 +15,7 @@ export default function ChatWindow({ data }) {
   return (
     <div className="chat-window" ref={chatWindowRef}>
       {data.map((item, index) => (
-        <div key={index} className="chat-message">
-          <p className="chat-window-input">User: {item.user}</p>
-          <p className="chat-window-output">LLM: {item.reply}</p>
-        </div>
+        <ChatMessage key={index} user={item.user} reply={item.reply} />
       ))}
     </div>
   );

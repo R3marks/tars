@@ -7,45 +7,47 @@ function App() {
   const [messages, setMessages] = useState("");
   const [data, setData] = useState([]); // Store full chat history
 
-  useEffect(() => {
-    if (messages === "") {
-      return;
-    }
-
+  function sendMessageToTars(message) {
+    // Add user message instantly
+    const tempMessage = { user: message, reply: "..." }; // Placeholder
+    setData((prev) => [...prev, tempMessage]);
+  
     const body = {
-      query: messages,
+      query: message,
       sessionId: 1
     };
-    const request = new Request("http://localhost:3001/api/ask-query", {
+  
+    fetch("http://localhost:3001/api/ask-query", {
       method: "POST",
       body: JSON.stringify(body),
       headers: {
         "Content-Type": "application/json",
       },
-    });
-
-    // Fetch data from the backend
-    fetch(request)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return response.json();
+    })
+      .then((response) => response.json())
+      .then((res) => {
+        // Replace the placeholder reply
+        setData((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { user: message, reply: res.reply };
+          return updated;
+        });
       })
-      .then((data) => {
-        // Append new conversation to the history
-        setData((prevData) => [...prevData, { user: messages, reply: data.reply }]);
-      })
-      .catch((error) => {
-        console.error('Error fetching data:', error);
+      .catch((err) => {
+        console.error(err);
+        setData((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { user: message, reply: "⚠️ Error" };
+          return updated;
+        });
       });
-  }, [messages]);
+  }
 
   return (
     <div className="app">
       <h1 className="app-header">TARS</h1>
       <ChatWindow data={data} />
-      <InputBox askOllama={setMessages} />
+      <InputBox askOllama={sendMessageToTars} />
     </div>
   );
 }
