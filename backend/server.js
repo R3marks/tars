@@ -106,6 +106,7 @@ router.post('/ask-query', async (req, res) => {
 
 app.use(cors({
   origin: 'http://localhost:3000',
+  origin: 'http://localhost:5173',
 }));
 
 app.use('/api', router);

@@ -1,7 +1,7 @@
 import './App.css';
 import { useState, useEffect } from 'react';
-import InputBox from './InputBox/InputBox.js';
-import ChatWindow from './ChatWindow/ChatWindow.js';
+import InputBox from './InputBox/InputBox.jsx';
+import ChatWindow from './ChatWindow/ChatWindow.jsx';
 
 function App() {
   const [messages, setMessages] = useState("");

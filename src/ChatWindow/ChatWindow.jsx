@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import './ChatWindow.css';
-import ChatMessage from '../ChatMessage/ChatMessage.js'
+import ChatMessage from '../ChatMessage/ChatMessage.jsx'
 
 export default function ChatWindow({ data }) {
   const chatWindowRef = useRef(null);
