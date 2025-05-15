@@ -10,6 +10,8 @@ from message_structures.message import Message
 from prompts.tars_system_prompt import TARS_PROMPT
 from prompts.router_prompt import ROUTER_RESPONSE
 
+from embed.vector_store import VectorStore
+
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +35,12 @@ conversation = Conversation(1)
 # Create and append the system prompt
 router_system_prompt: Message = Message(
     role = "system", 
-    content = ROUTER_RESPONSE
+    content = ""
 )
 conversation.append_message(router_system_prompt)
+
+# Persistent vector store connection
+vector_db = VectorStore()
 
 @app.post("/api/debug")
 async def debug_endpoint(request: Request):
@@ -59,6 +64,23 @@ async def ask_query(req: QueryRequest):
     if conversation.get_conversation_id() != session_id:
         print(f"Haven't initiliased session for id {session_id} for given ids {conversation.conversation_id}")
 
+    # RAG Query - Step 1: Search vector DB
+    results = vector_db.query(query, n_results=5)
+    print(results)
+
+    # Step 2: Format retrieved docs as system context
+    retrieved_docs = "\n\n".join(results['documents'][0])  # results is a dict with 'documents' key
+    print("##################")
+    print(retrieved_docs)
+
+    context_message = Message(
+        role="system",
+        content=f"Relevant context from documentation:\n\n{retrieved_docs}"
+    )
+
+    # Step 3: Prepare the final message list
+    messages = conversation.append_message(context_message)
+
     # Formulate the request into a query object
     query_message: Message = Message(
         role = "user", 
@@ -72,7 +94,8 @@ async def ask_query(req: QueryRequest):
     messages = conversation.return_message_history()
 
     # Choose the appropriate model
-    model = "gemma3:1b"
+    model = "gemma3:4b"
+
     if "think" in query:
         model = "qwen3:0.6b"
 

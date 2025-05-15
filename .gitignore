@@ -27,3 +27,6 @@ lerna-debug.log*
 *.sw?
 
 backend/__pycache__/
+android_docs_text/
+
+chroma_db_store
