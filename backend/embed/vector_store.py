@@ -3,7 +3,10 @@ from chromadb.config import Settings
 from ollama import embed
 
 class VectorStore:
-    def __init__(self, persist_directory="./chroma_db_store", collection_name="android_docs"):
+    def __init__(
+            self, 
+            persist_directory="./chroma_db_store", collection_name="android_docs"
+            ):
         self.client = chromadb.PersistentClient(
             path=persist_directory,
             settings=Settings(anonymized_telemetry=False)
