@@ -64,22 +64,22 @@ async def ask_query(req: QueryRequest):
     if conversation.get_conversation_id() != session_id:
         print(f"Haven't initiliased session for id {session_id} for given ids {conversation.conversation_id}")
 
-    # RAG Query - Step 1: Search vector DB
-    results = vector_db.query(query, n_results=5)
-    print(results)
+    # # RAG Query - Step 1: Search vector DB
+    # results = vector_db.query(query, n_results=5)
+    # print(results)
 
-    # Step 2: Format retrieved docs as system context
-    retrieved_docs = "\n\n".join(results['documents'][0])  # results is a dict with 'documents' key
-    print("##################")
-    print(retrieved_docs)
+    # # Step 2: Format retrieved docs as system context
+    # retrieved_docs = "\n\n".join(results['documents'][0])  # results is a dict with 'documents' key
+    # print("##################")
+    # print(retrieved_docs)
 
-    context_message = Message(
-        role="system",
-        content=f"Relevant context from documentation:\n\n{retrieved_docs}"
-    )
+    # context_message = Message(
+    #     role="system",
+    #     content=f"Relevant context from documentation:\n\n{retrieved_docs}"
+    # )
 
-    # Step 3: Prepare the final message list
-    messages = conversation.append_message(context_message)
+    # # Step 3: Prepare the final message list
+    # messages = conversation.append_message(context_message)
 
     # Formulate the request into a query object
     query_message: Message = Message(

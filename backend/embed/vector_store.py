@@ -30,7 +30,8 @@ class VectorStore:
 
         if new_docs:
             self.collection.add(
-                documents=new_docs,
+                documents=[doc["question"] for doc in new_docs],  # just the question strings
+                metadatas=[{"source_chunk": doc["source_chunk"]} for doc in new_docs],
                 embeddings=new_embeds,
                 ids=new_ids
             )

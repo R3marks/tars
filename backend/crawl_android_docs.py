@@ -5,6 +5,7 @@ from pathlib import Path
 import random
 from urllib.parse import urlparse, quote
 from typing import List
+from tqdm.asyncio import tqdm
 import aiohttp
 from xml.etree import ElementTree
 
@@ -15,7 +16,8 @@ from crawl4ai import (
     CrawlerRunConfig,
     CacheMode,
     DisplayMode,
-    MemoryAdaptiveDispatcher
+    MemoryAdaptiveDispatcher,
+    RateLimiter
 )
 from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
 from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
@@ -24,6 +26,18 @@ OUTPUT_DIR = Path("./android_docs_markdown")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 SECTIONS_TO_INCLUDE = [
+    "about", "adaptive-apps", "agi",
+    "build", "compose-camp", "courses",
+    "design", "develop", "docs",
+    "games", "get-started", "guide",
+    "jetpack", "kotlin",
+    "modern-android-development",
+    "quick-guides",
+    "reference", "samples", "sdk", 
+    "studio", "tools", "training",
+]
+
+VERBOSE_SECTIONS_TO_INCLUDE = [
     "about", "adaptive-apps", "agi", "ai", "assistant",
     "build", "cars", "chrome-os", "compose-camp", "courses",
     "design", "develop", "distribute", "docs", "events",
@@ -129,47 +143,59 @@ async def crawl_android_docs(
         max_depth=1, 
         max_pages=1000, 
         max_concurrent=5):
+    
+    # Set up progress bar
+    pbar = tqdm(total=len(urls), desc="🌐 Crawling URLs", unit="url")
+
+    saved_count = 0
+
     browser_config = BrowserConfig(headless=True)
 
     crawl_config = CrawlerRunConfig(
         cache_mode=CacheMode.BYPASS,
+        stream=True,  # Key for real-time speedup
         verbose=False
     )
 
     dispatcher = MemoryAdaptiveDispatcher(
-        memory_threshold_percent=70.0,
-        check_interval=3.0,
-        max_session_permit=10,
-        monitor=CrawlerMonitor(
-            # display_mode=DisplayMode.AGGREGATED
+        memory_threshold_percent=85.0,
+        check_interval=1.0,
+        max_session_permit=20,  # Try increasing if your machine can handle it
+        rate_limiter=RateLimiter(
+            base_delay=(0.5, 1.0),
+            max_delay=20.0,
+            max_retries=2
         )
     )
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
         # Get all results at once
-        results = await crawler.arun_many(
+        async for result in await crawler.arun_many(
             urls=urls,
             config=crawl_config,
             dispatcher=dispatcher
-        )
+        ):
 
         # Process all results after completion
-        for result in results:
             if result.success and result.markdown:
                 filename = safe_filename_from_url(result.url)
                 filepath = OUTPUT_DIR / filename
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(result.markdown if isinstance(result.markdown, str) else result.markdown.markdown)
+                saved_count += 1
             else:
                 print(f" ❌ Failed to crawl {result.url}: {result.error_message}")
 
-        print(f"✅ Saved: {len(results)} results")
+            pbar.update(1)
+
+        pbar.close()
+        print(f"✅ Saved: {saved_count} results")
 
 
 if __name__ == "__main__":
     urls_to_crawl = asyncio.run(get_filtered_android_doc_urls(
         section_keywords=SECTIONS_TO_INCLUDE,
-        max_urls=3000
+        max_urls=60000
     ))
     print(f"🌐 Ready to crawl {len(urls_to_crawl)} URLs across sections.")
 

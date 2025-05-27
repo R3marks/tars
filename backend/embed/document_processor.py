@@ -3,10 +3,11 @@ import re
 from textwrap import wrap
 from typing import List
 
-def load_text_files(folder_path: str) -> List[str]:
+def load_text_files(folder_path: str, limit: int) -> List[str]:
     documents = []
-    for filename in os.listdir(folder_path):
-        if filename.endswith(".txt"):
+    for i in range(min(limit, len(os.listdir(folder_path)))):  # Use range
+        filename = os.listdir(folder_path)[i]
+        if filename.endswith(".text") or filename.endswith(".md"):
             with open(os.path.join(folder_path, filename), "r", encoding="utf-8") as f:
                 text = f.read()
                 documents.append(text)
@@ -21,8 +22,8 @@ def clean_text(text: str) -> str:
 def chunk_text(text: str, max_length: int = 500) -> List[str]:
     return wrap(text, max_length)
 
-def preprocess_documents(folder_path: str, chunk_size: int = 500) -> List[str]:
-    raw_docs = load_text_files(folder_path)
+def preprocess_documents(folder_path: str, limit: int = 10, chunk_size: int = 500) -> List[str]:
+    raw_docs = load_text_files(folder_path, limit)
     cleaned_chunks = []
     for doc in raw_docs:
         cleaned = clean_text(doc)

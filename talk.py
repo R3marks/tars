@@ -1,7 +1,7 @@
 from ollama import chat
 
 def main():
-    model = 'qwen2.5-coder:3b'
+    model = 'deepseek-r1:8b'
     messages = [{'role': 'user', 'content': ''}]
 
     while True:
@@ -11,7 +11,8 @@ def main():
         stream = chat(
             model=model,
             messages=messages,
-            stream=True
+            stream=True,
+            think=False
         )
 
         for chunk in stream:

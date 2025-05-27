@@ -7,6 +7,16 @@
 	margin-bottom: 15px;
 }
 
+.inline-code {
+	background-color: #333;
+	padding: 2px 6px;
+	border-radius: 4px;
+	font-family: monospace;
+	font-size: 0.95em;
+	white-space: pre-wrap;
+}
+
+
 .chat-window-input {
 	text-align: left;
 	color: whitesmoke;

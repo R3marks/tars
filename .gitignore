@@ -29,5 +29,12 @@ lerna-debug.log*
 backend/__pycache__/
 android_docs_text/
 android_docs_markdown/
+android_docs_markdown_cleaned/
+android_docs_markdown_cleaned/
 
 chroma_db_store
+
+commands.txt
+backend/embed/__pycache__/
+backend/embed/__pycache__/document_processor.cpython-312.pyc
+backend/embed/__pycache__/vector_store.cpython-312.pyc

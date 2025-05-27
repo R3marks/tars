@@ -10,13 +10,18 @@ export default React.memo(({ user, reply }) => (
     <ReactMarkdown
       components={{
         p: ({ children }) => <p className="chat-window-input">{children}</p>,
-        code({ node, inline, className, children, ...props }) {
-          return inline ? (
-            <code className="inline-code">{children}</code>
-          ) : (
+        code({ node, inline, className = "", children, ...props }) {
+          const match = /language-(\w+)/.exec(className || "");
+          const language = match?.[1];
+
+          if (inline) {
+            return <code className="inline-code">{children}</code>;
+          }
+
+          return (
             <SyntaxHighlighter
               style={oneDark}
-              language="javascript"
+              language={language || "text"}
               PreTag="div"
               className="code-block"
               {...props}
@@ -24,7 +29,7 @@ export default React.memo(({ user, reply }) => (
               {String(children).replace(/\n$/, '')}
             </SyntaxHighlighter>
           );
-        },
+        }
       }}
     >
       {user}
@@ -34,13 +39,18 @@ export default React.memo(({ user, reply }) => (
     <ReactMarkdown
       components={{
         p: ({ children }) => <p className="chat-window-output">{children}</p>,
-        code({ node, inline, className, children, ...props }) {
-          return inline ? (
-            <code className="inline-code">{children}</code>
-          ) : (
+        code({ node, inline, className = "", children, ...props }) {
+          const match = /language-(\w+)/.exec(className || "");
+          const language = match?.[1];
+
+          if (inline) {
+            return <code className="inline-code">{children}</code>;
+          }
+
+          return (
             <SyntaxHighlighter
               style={oneDark}
-              language="javascript"
+              language={language || "text"}
               PreTag="div"
               className="code-block"
               {...props}
@@ -48,7 +58,7 @@ export default React.memo(({ user, reply }) => (
               {String(children).replace(/\n$/, '')}
             </SyntaxHighlighter>
           );
-        },
+        }
       }}
     >
       {reply}
