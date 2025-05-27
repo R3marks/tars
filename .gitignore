@@ -29,5 +29,7 @@ lerna-debug.log*
 backend/__pycache__/
 android_docs_text/
 android_docs_markdown/
+android_docs_markdown_cleaned/
+android_docs_markdown_cleaned/
 
 chroma_db_store
