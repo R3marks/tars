@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from ollama import chat
 import logging
+import time
 
 from message_structures.QueryRequest import QueryRequest
 from message_structures.conversation import Conversation
@@ -11,6 +12,8 @@ from prompts.tars_system_prompt import TARS_PROMPT
 from prompts.router_prompt import ROUTER_RESPONSE
 
 from embed.vector_store import VectorStore
+
+from search.web_search import run_web_search, select_best_link, crawl_page_markdown
 
 
 logger = logging.getLogger(__name__)
@@ -90,20 +93,44 @@ async def ask_query(req: QueryRequest):
     # Append the query to the conversation history
     conversation.append_message(query_message)
 
-    # Prepare message history for LLM
-    messages = conversation.return_message_history()
-
     # Choose the appropriate model
-    model = "gemma3:4b"
+    model = "gemma3n:e4b"
 
     if "think" in query:
         model = "qwen3:0.6b"
+
+    if "search" in query.lower():
+        print("🌐 Performing web search...")
+        web_results = run_web_search(query, max_results=3)
+        print(web_results)
+        best_result = select_best_link(query, web_results)
+        print(f"🔗 Selected: {best_result['url']}")
+
+        markdown = await crawl_page_markdown(best_result['url'])
+        print(markdown[:50])
+
+        # Clean the markdown if desired (optional utility call)
+        # cleaned_markdown = clean_markdown(markdown)  
+
+        # Merge the markdown into the user query
+        conversation.update_last_message(
+            f"\n\n[Live web results below — use them to help answer accurately:]\n{markdown}"
+            )
+
+    # Prepare message history for LLM
+    messages = conversation.return_message_history()
+
+    start_time = time.time()
+    print(messages[-1])
 
     try:
         response = chat(
             model = model,
             messages = messages
         )
+
+        elapsed = time.time() - start_time
+        print(f"⏱️ Tars LLM response time: {elapsed:.2f} seconds")
 
         reply = response.message.content 
         reply_message: Message = Message(

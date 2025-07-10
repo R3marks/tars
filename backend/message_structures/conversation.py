@@ -14,5 +14,10 @@ class Conversation():
     def append_message(self, message: Message):
         self.messages.append(message)
 
+    def update_last_message(self, update: str):
+        last_message = self.messages.pop(1)
+        updated_message = last_message.add_context(update)
+        self.messages.append(updated_message)
+
     def return_message_history(self):
         return self.messages
