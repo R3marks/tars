@@ -40,3 +40,5 @@ backend/embed/__pycache__/document_processor.cpython-312.pyc
 backend/embed/__pycache__/vector_store.cpython-312.pyc
 
 backend/message_structures/__pycache__/
+
+backend/search/__pycache__/
