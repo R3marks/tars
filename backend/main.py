@@ -9,5 +9,5 @@ if __name__ == "__main__":
         "server:app",
         host="127.0.0.1",
         port=3001,
-        reload=False,  # 🚫 Don't use reload here
+        reload=True,  # 🚫 Don't use reload here
     )

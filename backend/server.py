@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from ollama import chat
@@ -13,7 +14,7 @@ from prompts.router_prompt import ROUTER_RESPONSE
 
 from embed.vector_store import VectorStore
 
-from search.web_search import run_web_search, select_best_link, crawl_page_markdown
+from search.web_search import *
 
 
 logger = logging.getLogger(__name__)
@@ -94,16 +95,17 @@ async def ask_query(req: QueryRequest):
     conversation.append_message(query_message)
 
     # Choose the appropriate model
-    model = "gemma3n:e4b"
+    model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
 
     if "think" in query:
         model = "qwen3:0.6b"
 
-    if "search" in query.lower():
+    if "search" in query.lower() and check_if_search_is_needed(query):
         print("🌐 Performing web search...")
-        web_results = run_web_search(query, max_results=3)
+        search_query = reformulate_query_into_internet_search(query)
+        web_results = run_web_search(search_query, max_results=3)
         print(web_results)
-        best_result = select_best_link(query, web_results)
+        best_result = select_best_link(search_query, web_results)
         print(f"🔗 Selected: {best_result['url']}")
 
         markdown = await crawl_page_markdown(best_result['url'])
@@ -129,8 +131,8 @@ async def ask_query(req: QueryRequest):
             messages = messages
         )
 
-        elapsed = time.time() - start_time
-        print(f"⏱️ Tars LLM response time: {elapsed:.2f} seconds")
+        tokens_per_second = (response.eval_count / response.eval_duration) * pow(10, 9)
+        print(f"⏱️  Tars LLM response time processed prompt with {response.prompt_eval_count} tokens, outputted {response.eval_count} tokens in {response.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
 
         reply = response.message.content 
         reply_message: Message = Message(

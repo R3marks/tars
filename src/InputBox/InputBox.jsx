@@ -21,7 +21,6 @@ export default function InputBox(props) {
 				onChange={(e) => setValue(e.target.value)}
 				onKeyDown={(e) => handleKeyPress(e)}
 				placeholder="Chat"
-			// role="textbox"
 			/>
 			<button
 				className="input-button"
