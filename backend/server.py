@@ -1,9 +1,14 @@
-
+import mss
+import base64
+from io import BytesIO
+from PIL import Image
 from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from ollama import chat
 import logging
 import time
+
 
 from message_structures.QueryRequest import QueryRequest
 from message_structures.conversation import Conversation
@@ -29,6 +34,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -125,24 +131,75 @@ async def ask_query(req: QueryRequest):
     start_time = time.time()
     print(messages[-1])
 
-    try:
-        response = chat(
-            model = model,
-            messages = messages
-        )
+    async def response_stream():
+        try:
+            response = chat(
+                model=model,
+                messages=messages,
+                stream=True
+            )
 
-        tokens_per_second = (response.eval_count / response.eval_duration) * pow(10, 9)
-        print(f"⏱️  Tars LLM response time processed prompt with {response.prompt_eval_count} tokens, outputted {response.eval_count} tokens in {response.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
+            full_reply = ""
+            last_part = None  # To store the final part for eval_count etc.
 
-        reply = response.message.content 
-        reply_message: Message = Message(
-            role = "assistant", 
-            content = reply
-        )
+            for part in response:
+                content = part['message']['content']
+                full_reply += content
+                yield content  # Stream this chunk to client immediately
+                last_part = part  # Keep overwriting until the last part
 
-        conversation.append_message(reply_message)
+            tokens_per_second = (
+                last_part.eval_count / last_part.eval_duration) * pow(10, 9)
+            print(f"⏱️  Tars LLM response time processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
 
-        return { "reply": reply }
+            # reply = response.message.content 
+            reply_message: Message = Message(
+                role = "assistant", 
+                content = full_reply
+            )
 
-    except Exception as e:
-        return { "error": str(e) }
+            conversation.append_message(reply_message)
+
+            # return { "reply": reply }
+
+        except Exception as e:
+            yield { "error": str(e) }
+
+    return StreamingResponse(response_stream(), media_type="text/plain")
+    
+@app.post("/api/screenshot")
+async def screenshot_and_ask():
+    # Capture screenshot
+    with mss.mss() as sct:
+        screenshot = sct.grab(sct.monitors[1])  # Fullscreen of primary monitor
+        img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+        
+        # Optional: Resize/compress image if too large
+        img = img.resize((640, 360))  # Lower resolution for faster LLM context handling
+
+        # Encode image to base64 to pass to LLM vision
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+    # Compose LLM vision prompt
+    prompt = "Describe what you see in this screenshot."
+
+    # Assuming you have a vision-enabled Ollama model like `llava` or `bakllava`
+    response = chat(
+        model = "qwen2.5vl:7b",
+        messages=[
+            {
+                "role": "user", 
+                "content": prompt, 
+                "images": [img_str]
+            }
+        ]
+    )
+
+    tokens_per_second = (
+        response.eval_count / response.eval_duration
+        ) * pow(10, 9)
+    print(f"⏱️  Tars Vision response time processed prompt with {response.prompt_eval_count} tokens, outputted {response.eval_count} tokens in {response.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
+
+    return {"reply": response.message.content}

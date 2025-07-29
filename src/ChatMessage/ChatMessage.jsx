@@ -38,12 +38,19 @@ export default React.memo(({ user, reply }) => (
     <strong className="chat-window-output">TARS:</strong>
     <ReactMarkdown
       components={{
-        p: ({ children }) => <p className="chat-window-output">{children}</p>,
+        p: ({ node, children }) => {
+          const isCodeBlock = node.children?.some(child => child.tagName === 'code');
+          if (isCodeBlock) {
+            return <>{children}</>;  // No <p> wrapper
+          }
+          return <p className="chat-window-output">{children}</p>;
+        },
+
         code({ node, inline, className = "", children, ...props }) {
           const match = /language-(\w+)/.exec(className || "");
           const language = match?.[1];
 
-          if (inline) {
+          if (inline || node?.parent?.type === 'paragraph') {
             return <code className="inline-code">{children}</code>;
           }
 

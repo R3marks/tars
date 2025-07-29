@@ -6,11 +6,11 @@ export default function ChatWindow({ data }) {
   const chatWindowRef = useRef(null);
 
   // Scroll to the latest message
-  useEffect(() => {
-    if (chatWindowRef.current) {
-      chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
-    }
-  }, [data]);
+  // useEffect(() => {
+  //   if (chatWindowRef.current) {
+  //     chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
+  //   }
+  // }, [data]);
 
   return (
     <div className="chat-window" ref={chatWindowRef}>
