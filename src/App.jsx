@@ -1,92 +1,97 @@
 import './App.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import InputBox from './InputBox/InputBox.jsx';
 import ChatWindow from './ChatWindow/ChatWindow.jsx';
 
 function App() {
-  const [messages, setMessages] = useState("");
   const [data, setData] = useState([]); // Store full chat history
+  const ws = useRef(null);
 
-  function sendMessageToTars(message) {
-    console.log("Sending message to Tars")
-    // Add user message instantly
-    const tempMessage = { user: message, reply: "..." }; // Placeholder
-    setData((prev) => [...prev, tempMessage]);
-  
-    const body = {
-      query: message,
-      sessionId: 1
-    };
-  
-    fetch("http://localhost:3001/api/ask-query", {
-      method: "POST",
-      body: JSON.stringify(body),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-      // .then((response) => response.json())
-      .then((response) => {
-        // Replace the placeholder reply
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+  useEffect(() => {
+    ws.current = new WebSocket('ws://localhost:3001/ws/agent');
 
-        function read() {
-          reader.read().then(({ done, value }) => {
-            if (done) return;
+    // Helper function to format message chunk
+    function formatMessageChunk(type, message) {
+      let prefix = "";
+      let suffix = "\n\n";  // Always add newline for now
 
-            const chunk = decoder.decode(value, { stream: true });
-            // Append chunk to last message's reply
-            setData((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = { 
-                ...updated[updated.length - 1],
-                reply: updated[updated.length - 1].reply + chunk
-              };
-              return updated;
-            });
+      switch (type) {
+        case "ack":
+          prefix = "[ACK] ";
+          break;
+        case "route_decision":
+          prefix = "[ROUTER] ";
+          break;
+        case "final_response":
+          prefix = "";
+          suffix = "";  // Streaming chunks—no newline after each fragment
+          break;
+        case "error":
+          prefix = "⚠️ ERROR: ";
+          suffix = "\n";
+          break;
+        default:
+          break;
+      }
 
-            read(); // Continue reading next chunk
-          });
+      return `${prefix}${message}${suffix}`;
+    }
+
+    ws.current.onmessage = (event) => {
+      const dataObj = JSON.parse(event.data);
+      console.log("Received:", dataObj);
+
+      setData((prev) => {
+        const updated = [...prev];
+
+        if (updated.length === 0) {
+          updated.push({ user: null, reply: "" });
         }
 
-        read();
-      })
-      .catch((err) => {
-        console.error(err);
-        setData((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { user: message, reply: "⚠️ Error" };
-          return updated;
-        });
-      });
-  }
+        const formattedChunk = formatMessageChunk(dataObj.type, dataObj.message);
 
-  function askTarsToSee() {
-    // Add user message instantly
-    const tempMessage = { user: "SENDING SCREENSHOT", reply: "..." }; // Placeholder
-    setData((prev) => [...prev, tempMessage]);
-
-    console.log("Trying to ask Tars to see!")
-    fetch("http://localhost:3001/api/screenshot", {
-      method: "POST",
-    })
-      .then((response) => response.json())
-      .then((res) => {
-        console.log("Screenshot result:", res);
-        // You can update the UI to show response
-        setData((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { 
-            user: "SCREENSHOT", 
-            reply: res.reply
+        if (dataObj.type === "ack" || dataObj.type === "route_decision" || dataObj.type === "final_response") {
+          // Always update last message
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            reply: updated[updated.length - 1].reply + formattedChunk
           };
-          return updated;
-        });
-      })
-      .catch((err) => {
-        console.error("Screenshot failed", err);
+        } else if (dataObj.type === "error") {
+          // Errors get a new message block
+          updated.push({ user: null, reply: formattedChunk });
+        }
+
+        return updated;
       });
+    };
+
+    ws.current.onopen = () => {
+      console.log("WebSocket Connected");
+    };
+
+    ws.current.onclose = () => {
+      console.log("WebSocket Disconnected");
+    };
+
+    return () => {
+      ws.current.close();
+    };
+  }, []);
+
+  function sendMessageToTars(message) {
+    console.log("Sending message to Tars (WS)");
+
+    // Add user message instantly
+    setData((prev) => [...prev, { user: message, reply: "...\n\n" }]);
+
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      console.log("Sending message" + message)
+      ws.current.send(JSON.stringify({
+        type: "user_message",
+        message: message,
+        sessionId: 1  // future-proofing for multi-session support
+      }));
+    }
   }
 
   return (
@@ -94,8 +99,8 @@ function App() {
       <h1 className="app-header">TARS</h1>
       <ChatWindow data={data} />
       <InputBox 
-      askOllama = {sendMessageToTars}
-      showTars = {askTarsToSee}
+        askOllama={sendMessageToTars}
+        showTars={() => {}}
       />
     </div>
   );

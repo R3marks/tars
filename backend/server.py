@@ -1,205 +1,206 @@
-import mss
-import base64
-from io import BytesIO
-from PIL import Image
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from ollama import chat
-import logging
-import time
+# import mss
+# import base64
+# from io import BytesIO
+# from PIL import Image
+# from fastapi import FastAPI, Request
+# from fastapi.responses import StreamingResponse
+# from fastapi.middleware.cors import CORSMiddleware
+# from ollama import chat
+# import logging
+# import time
 
 
-from message_structures.QueryRequest import QueryRequest
-from message_structures.conversation import Conversation
-from message_structures.message import Message
+# from message_structures.QueryRequest import QueryRequest
+# from message_structures.conversation import Conversation
+# from message_structures.message import Message
 
-from prompts.tars_system_prompt import TARS_PROMPT
-from prompts.router_prompt import ROUTER_RESPONSE
+# from prompts.tars_system_prompt import TARS_PROMPT
+# from prompts.router_prompt import ROUTER_RESPONSE
 
-from embed.vector_store import VectorStore
+# from embed.vector_store import VectorStore
 
-from search.web_search import *
-
-
-logger = logging.getLogger(__name__)
-
-app = FastAPI()
-
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Initialise a conversation
-conversation = Conversation(1)
-
-# Create and append the system prompt
-router_system_prompt: Message = Message(
-    role = "system", 
-    content = ""
-)
-conversation.append_message(router_system_prompt)
-
-# Persistent vector store connection
-vector_db = VectorStore()
-
-@app.post("/api/debug")
-async def debug_endpoint(request: Request):
-    logger.info("DEBUG endpoint hit.")
-    try:
-        json_data = await request.json()
-        logger.info(f"Received raw JSON: {json_data}")
-        return {"received": json_data}
-    except Exception as e:
-        logger.error(f"Failed to parse JSON: {str(e)}")
-        return {"error": str(e)}
+# from search.web_search import *
 
 
-@app.post("/api/ask-query")
-async def ask_query(req: QueryRequest):
-    # Retrieve the session ID and query from the request
-    session_id = req.sessionId
-    query = req.query
+# logger = logging.getLogger(__name__)
 
-    # Load the relevant conversation 
-    if conversation.get_conversation_id() != session_id:
-        print(f"Haven't initiliased session for id {session_id} for given ids {conversation.conversation_id}")
+# app = FastAPI()
 
-    # # RAG Query - Step 1: Search vector DB
-    # results = vector_db.query(query, n_results=5)
-    # print(results)
+# origins = [
+#     "http://localhost:3000",
+#     "http://localhost:5173",
+# ]
 
-    # # Step 2: Format retrieved docs as system context
-    # retrieved_docs = "\n\n".join(results['documents'][0])  # results is a dict with 'documents' key
-    # print("##################")
-    # print(retrieved_docs)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
-    # context_message = Message(
-    #     role="system",
-    #     content=f"Relevant context from documentation:\n\n{retrieved_docs}"
-    # )
+# # Initialise a conversation
+# conversation = Conversation(1)
 
-    # # Step 3: Prepare the final message list
-    # messages = conversation.append_message(context_message)
+# # Create and append the system prompt
+# router_system_prompt: Message = Message(
+#     role = "system", 
+#     content = ""
+# )
+# conversation.append_message(router_system_prompt)
 
-    # Formulate the request into a query object
-    query_message: Message = Message(
-        role = "user", 
-        content = query
-    )
+# # Persistent vector store connection
+# vector_db = VectorStore()
 
-    # Append the query to the conversation history
-    conversation.append_message(query_message)
+# @app.post("/api/debug")
+# async def debug_endpoint(request: Request):
+#     logger.info("DEBUG endpoint hit.")
+#     try:
+#         json_data = await request.json()
+#         logger.info(f"Received raw JSON: {json_data}")
+#         return {"received": json_data}
+#     except Exception as e:
+#         logger.error(f"Failed to parse JSON: {str(e)}")
+#         return {"error": str(e)}
 
-    # Choose the appropriate model
-    model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
 
-    if "think" in query:
-        model = "qwen3:0.6b"
+# @app.post("/api/ask-query")
+# async def ask_query(req: QueryRequest):
+#     # Retrieve the session ID and query from the request
+#     session_id = req.sessionId
+#     query = req.query
 
-    if "search" in query.lower() and check_if_search_is_needed(query):
-        print("🌐 Performing web search...")
-        search_query = reformulate_query_into_internet_search(query)
-        web_results = run_web_search(search_query, max_results=3)
-        print(web_results)
-        best_result = select_best_link(search_query, web_results)
-        print(f"🔗 Selected: {best_result['url']}")
+#     # Load the relevant conversation 
+#     if conversation.get_conversation_id() != session_id:
+#         print(f"Haven't initiliased session for id {session_id} for given ids {conversation.conversation_id}")
 
-        markdown = await crawl_page_markdown(best_result['url'])
-        print(markdown[:50])
+#     # # RAG Query - Step 1: Search vector DB
+#     # results = vector_db.query(query, n_results=5)
+#     # print(results)
 
-        # Clean the markdown if desired (optional utility call)
-        # cleaned_markdown = clean_markdown(markdown)  
+#     # # Step 2: Format retrieved docs as system context
+#     # retrieved_docs = "\n\n".join(results['documents'][0])  # results is a dict with 'documents' key
+#     # print("##################")
+#     # print(retrieved_docs)
 
-        # Merge the markdown into the user query
-        conversation.update_last_message(
-            f"\n\n[Live web results below — use them to help answer accurately:]\n{markdown}"
-            )
+#     # context_message = Message(
+#     #     role="system",
+#     #     content=f"Relevant context from documentation:\n\n{retrieved_docs}"
+#     # )
 
-    # Prepare message history for LLM
-    messages = conversation.return_message_history()
+#     # # Step 3: Prepare the final message list
+#     # messages = conversation.append_message(context_message)
 
-    start_time = time.time()
-    print(messages[-1])
+#     # Formulate the request into a query object
+#     query_message: Message = Message(
+#         role = "user", 
+#         content = query
+#     )
 
-    async def response_stream():
-        try:
-            response = chat(
-                model=model,
-                messages=messages,
-                stream=True
-            )
+#     # Append the query to the conversation history
+#     conversation.append_message(query_message)
 
-            full_reply = ""
-            last_part = None  # To store the final part for eval_count etc.
+#     # Choose the appropriate model
+#     model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
 
-            for part in response:
-                content = part['message']['content']
-                full_reply += content
-                yield content  # Stream this chunk to client immediately
-                last_part = part  # Keep overwriting until the last part
+#     if "think" in query:
+#         model = "qwen3:0.6b"
 
-            tokens_per_second = (
-                last_part.eval_count / last_part.eval_duration) * pow(10, 9)
-            print(f"⏱️  Tars LLM response time processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
+#     if "search" in query.lower() and check_if_search_is_needed(query) and False:
+#         print("🌐 Performing web search...")
+#         search_query = reformulate_query_into_internet_search(query)
+#         web_results = run_web_search(search_query, max_results=3)
+#         print(web_results)
+#         best_result = select_best_link(search_query, web_results)
+#         print(f"🔗 Selected: {best_result['url']}")
 
-            # reply = response.message.content 
-            reply_message: Message = Message(
-                role = "assistant", 
-                content = full_reply
-            )
+#         markdown = await crawl_page_markdown(best_result['url'])
+#         print(markdown[:50])
 
-            conversation.append_message(reply_message)
+#         # Clean the markdown if desired (optional utility call)
+#         # cleaned_markdown = clean_markdown(markdown)  
 
-            # return { "reply": reply }
+#         # Merge the markdown into the user query
+#         conversation.update_last_message(
+#             f"\n\n[Live web results below — use them to help answer accurately:]\n{markdown}"
+#             )
 
-        except Exception as e:
-            yield { "error": str(e) }
+#     # Prepare message history for LLM
+#     messages = conversation.return_message_history()
 
-    return StreamingResponse(response_stream(), media_type="text/plain")
+#     start_time = time.time()
+#     print(messages[-1])
+
+#     async def response_stream():
+#         try:
+#             response = chat(
+#                 model=model,
+#                 messages=messages,
+#                 stream=True
+#             )
+
+#             full_reply = ""
+#             last_part = None  # To store the final part for eval_count etc.
+
+#             for part in response:
+#                 content = part['message']['content']
+#                 full_reply += content
+#                 yield content  # Stream this chunk to client immediately
+#                 last_part = part  # Keep overwriting until the last part
+
+#             tokens_per_second = (
+#                 last_part.eval_count / last_part.eval_duration
+#                 ) * pow(10, 9)
+#             print(f"⏱️  Tars LLM response time processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
+
+#             # reply = response.message.content 
+#             reply_message: Message = Message(
+#                 role = "assistant", 
+#                 content = full_reply
+#             )
+
+#             conversation.append_message(reply_message)
+
+#             # return { "reply": reply }
+
+#         except Exception as e:
+#             yield { "error": str(e) }
+
+#     return StreamingResponse(response_stream(), media_type="text/plain")
     
-@app.post("/api/screenshot")
-async def screenshot_and_ask():
-    # Capture screenshot
-    with mss.mss() as sct:
-        screenshot = sct.grab(sct.monitors[1])  # Fullscreen of primary monitor
-        img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+# @app.post("/api/screenshot")
+# async def screenshot_and_ask():
+#     # Capture screenshot
+#     with mss.mss() as sct:
+#         screenshot = sct.grab(sct.monitors[1])  # Fullscreen of primary monitor
+#         img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
         
-        # Optional: Resize/compress image if too large
-        img = img.resize((640, 360))  # Lower resolution for faster LLM context handling
+#         # Optional: Resize/compress image if too large
+#         img = img.resize((640, 360))  # Lower resolution for faster LLM context handling
 
-        # Encode image to base64 to pass to LLM vision
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+#         # Encode image to base64 to pass to LLM vision
+#         buffered = BytesIO()
+#         img.save(buffered, format="PNG")
+#         img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-    # Compose LLM vision prompt
-    prompt = "Describe what you see in this screenshot."
+#     # Compose LLM vision prompt
+#     prompt = "Describe what you see in this screenshot."
 
-    # Assuming you have a vision-enabled Ollama model like `llava` or `bakllava`
-    response = chat(
-        model = "qwen2.5vl:7b",
-        messages=[
-            {
-                "role": "user", 
-                "content": prompt, 
-                "images": [img_str]
-            }
-        ]
-    )
+#     # Assuming you have a vision-enabled Ollama model like `llava` or `bakllava`
+#     response = chat(
+#         model = "qwen2.5vl:7b",
+#         messages=[
+#             {
+#                 "role": "user", 
+#                 "content": prompt, 
+#                 "images": [img_str]
+#             }
+#         ]
+#     )
 
-    tokens_per_second = (
-        response.eval_count / response.eval_duration
-        ) * pow(10, 9)
-    print(f"⏱️  Tars Vision response time processed prompt with {response.prompt_eval_count} tokens, outputted {response.eval_count} tokens in {response.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
+#     tokens_per_second = (
+#         response.eval_count / response.eval_duration
+#         ) * pow(10, 9)
+#     print(f"⏱️  Tars Vision response time processed prompt with {response.prompt_eval_count} tokens, outputted {response.eval_count} tokens in {response.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
 
-    return {"reply": response.message.content}
+#     return {"reply": response.message.content}
