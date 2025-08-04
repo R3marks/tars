@@ -9,19 +9,36 @@ export default React.memo(({ user, reply }) => (
     <strong className="chat-window-input">User:</strong>
     <ReactMarkdown
       components={{
-        p: ({ children }) => <p className="chat-window-input">{children}</p>,
-        code({ node, inline, className = "", children, ...props }) {
+        p: ({ node, children }) => {
+          const isOnlyInline = node.children?.every(
+            child => child.type === 'text' || (child.tagName === 'code' && child.properties?.className?.includes('inline-code'))
+          );
+
+          if (isOnlyInline) {
+            return <p className="chat-window-output">{children}</p>;
+          }
+
+          return <>{children}</>; // Avoid wrapping if it contains block elements
+        },
+        code({ inline, className = "", children, ...props }) {
           const match = /language-(\w+)/.exec(className || "");
           const language = match?.[1];
 
+          // Always render inline code spans if inline is true
           if (inline) {
             return <code className="inline-code">{children}</code>;
           }
 
+          // If NOT inline but no language is specified → inline code in block context (e.g., lists)
+          if (!language) {
+            return <code className="inline-code">{children}</code>;
+          }
+
+          // This is a fenced code block → render SyntaxHighlighter
           return (
             <SyntaxHighlighter
               style={oneDark}
-              language={language || "text"}
+              language={language}
               PreTag="div"
               className="code-block"
               {...props}

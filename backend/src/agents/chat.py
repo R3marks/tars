@@ -1,4 +1,5 @@
 from ollama import chat
+import hashlib
 import asyncio
 import json
 from fastapi.responses import StreamingResponse
@@ -53,48 +54,78 @@ async def handle_chat_query(query: str):
 
     return StreamingResponse(response_stream(), media_type="text/plain")
 
-async def handle_chat_query_ws(query: str, websocket):
-    print(f"[WS] Query: {query}")
+async def ask_model_stream(
+        query: str, 
+        model: str, 
+        system_prompt: str = None,
+        retry=False  # Flag to detect if this is a retry
+    ):
+    print(query)
+    
+    messages = [ { "role": "user", "content": query } ]
 
-    # Phase 1: Immediate Acknowledgment
-    await websocket.send_json({"type": "ack", "message": "Uhhhh, let's have a look..."})
-    await asyncio.sleep(1)
+    if system_prompt:
+        messages.insert(0, { "role": "system", "content": system_prompt })
 
-    # Phase 2: Routing Decision
-    await websocket.send_json({"type": "route_decision", "message": "Let's see what TARS has to say..."})
-    await asyncio.sleep(1)
-
-    # Phase 3: Stream Final Response
-    messages = [
-        {
-            "role": "user", 
-            "content": query
-        }
-    ]
-
-    model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
-
-    try:
+    try: 
         response = chat(
-            model=model, 
-            messages=messages, 
-            stream=True
-            )
-        
+            model = model, 
+            messages = messages,
+            think = False,
+            stream = True
+        )
+
         full_reply = ""
+        parts = []
+        sliding_window = []
+        seen_sequences = {}
 
         for part in response:
+            parts.append(part)
             content = part['message']['content']
-            full_reply += content
-            await websocket.send_json({"type": "final_response", "message": content})
 
-        # Final Stats (optional)
-        last_part = part  # Last response part for eval count, duration, etc.
+            # Append current content to sliding window
+            sliding_window.append(content)
+            if len(sliding_window) > 10:
+                sliding_window.pop(0)
+
+            # Check for repetition if window is full
+            if len(sliding_window) == 10:
+                window_concat = ''.join(sliding_window)
+                window_hash = hashlib.md5(window_concat.encode('utf-8')).hexdigest()
+
+                count = seen_sequences.get(window_hash, 0) + 1
+                seen_sequences[window_hash] = count
+
+                if count >= 5:
+                    print(f"Detected Loop on hash {window_hash} after {count} repeats")
+                    print(sliding_window)
+                    print(parts[-20:])
+
+                    if not retry:
+                        # Retry once with loop-breaking prompt
+                        print("Retrying prompt with loop prevention instructions...")
+                        recovery_prompt = query + "\n\nIMPORTANT: Do not repeat yourself. Be concise and finish your answer."
+                        async for retry_chunk in ask_model_stream(recovery_prompt, model, system_prompt, retry=True):
+                            yield retry_chunk
+                    else:
+                        # On second failure, return error
+                        yield {"type": "error", "content": "Loop detected and retry failed."}
+                    return  # Break out of stream loop after handling
+
+            full_reply += content
+            yield {"type": "chunk", "content": content}
+
+        # Final Stats
+        last_part = part
         tokens_per_second = (
             last_part.eval_count / last_part.eval_duration
         ) * pow(10, 9)
-        print(full_reply)
+        print(last_part)
+        print(full_reply[-100:])
         print(f"⏱️  Processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
 
     except Exception as e:
-        await websocket.send_json({"type": "error", "message": str(e)})
+        yield {"type": "error", "content": f"[Error]: {str(e)}"}
+
+

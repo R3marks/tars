@@ -2,6 +2,8 @@ import './App.css';
 import { useState, useEffect, useRef } from 'react';
 import InputBox from './InputBox/InputBox.jsx';
 import ChatWindow from './ChatWindow/ChatWindow.jsx';
+import { warn, debug, trace, info, error } from '@tauri-apps/plugin-log';
+
 
 function App() {
   const [data, setData] = useState([]); // Store full chat history
@@ -39,7 +41,6 @@ function App() {
 
     ws.current.onmessage = (event) => {
       const dataObj = JSON.parse(event.data);
-      console.log("Received:", dataObj);
 
       setData((prev) => {
         const updated = [...prev];
@@ -85,7 +86,7 @@ function App() {
     setData((prev) => [...prev, { user: message, reply: "...\n\n" }]);
 
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      console.log("Sending message" + message)
+      console.log("Sending message " + message)
       ws.current.send(JSON.stringify({
         type: "user_message",
         message: message,
