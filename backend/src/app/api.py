@@ -2,16 +2,10 @@ import json
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from message_structures.QueryRequest import QueryRequest
-from src.agents.router import handle_query, handle_query_ws
+from src.agents.router import handle_query
 from src.agents.chat import ask_model_stream
 
 api_router = APIRouter()
-
-@api_router.post("/api/query")
-async def process_query(request: QueryRequest):
-    print(request)
-    query = request.query
-    return await handle_query(query)
 
 # New WebSocket Endpoint
 @api_router.websocket("/ws/agent")
@@ -42,6 +36,6 @@ async def agent_websocket_endpoint(websocket: WebSocket):
 
             # await asyncio.sleep(3)
 
-            await handle_query_ws(query, websocket)
+            await handle_query(query, websocket)
     except WebSocketDisconnect:
         print("Client disconnected")

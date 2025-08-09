@@ -1,28 +1,68 @@
 .chat-message {
-	flex-shrink: 0;
-	flex-grow: 0;
-	height: auto;
-	overflow-wrap: break-word;
-	max-width: 100%;
-	margin-bottom: 15px;
+  margin-bottom: 12px;
+  width: 100%;
+  display: block;
 }
 
+/* container for each side's bubble/area */
+.message {
+  display: flex;
+  width: 100%;
+  margin: 6px 0;
+}
+
+/* left-aligned user block */
+.message.user {
+  justify-content: flex-start;
+  height: auto;
+  text-align: left;     /* text alignment inside block */
+  color: whitesmoke;    /* user text color */
+}
+
+/* right-aligned assistant block */
+.message.tars {
+  justify-content: flex-end;
+  height: auto;
+  text-align: right;    /* text alignment inside block */
+  color: lightseagreen; /* assistant text color */
+}
+
+/* Keep the content width manageable (avoid full-width stretching) */
+.message-inner {
+  max-width: 100%;
+  /* optional styling: background, padding, border-radius if you want bubbles */
+  /* background: rgba(255,255,255,0.03); */
+  /* padding: 6px 10px; */
+  /* border-radius: 6px; */
+}
+
+/* Labels */
+.chat-label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+  font-size: 1.25rem;
+}
+
+/* inline code */
 .inline-code {
-	background-color: #333;
-	padding: 2px 6px;
-	border-radius: 4px;
-	font-family: monospace;
-	font-size: 0.95em;
-	white-space: pre-wrap;
+  background-color: #333;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 1.1em;
+  white-space: pre-wrap;
 }
 
-
-.chat-window-input {
-	text-align: left;
-	color: whitesmoke;
+/* code block container class from SyntaxHighlighter */
+.code-block {
+  margin: 0.5rem 0;
+  border-radius: 6px;
+  overflow: auto;
+  font-size: 0.9rem;
 }
 
-.chat-window-output {
-	text-align: right;
-	color: lightseagreen;
+/* tweak lists, paragraphs etc if you want */
+.message-inner p {
+  margin: 0.35rem 0;
 }

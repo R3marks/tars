@@ -4,55 +4,25 @@ import asyncio
 import json
 from fastapi.responses import StreamingResponse
 
-async def handle_chat_query(query: str):
-    print(query)
-    print(type(query))
-    messages = [
-        {
-            "role": "user", 
-            "content": query
-        }
-    ]
+SLIDING_WINDOW_LENGTH = 25
 
-    model="hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
+def ask_model(
+        model: str, 
+    ):
+    try: 
+        response = chat(
+            model = model, 
+            messages = ["This is a message that intends to load the model into memory, reply as quickly as possible and don't worry about the output"],
+            think = False,
+            stream = False
+        )
 
-    async def response_stream():
-        try:
-            response = chat(
-                model=model,
-                messages=messages,
-                stream=True
-            )
-
-            full_reply = ""
-            last_part = None  # To store the final part for eval_count etc.
-
-            for part in response:
-                content = part['message']['content']
-                full_reply += content
-                yield content  # Stream this chunk to client immediately
-                last_part = part  # Keep overwriting until the last part
-
-            tokens_per_second = (
-                last_part.eval_count / last_part.eval_duration
-                ) * pow(10, 9)
-            
-            print(f"⏱️  Tars LLM response time processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
-
-            # reply = response.message.content 
-            # reply_message: Message = Message(
-            #     role = "assistant", 
-            #     content = full_reply
-            # )
-
-            # conversation.append_message(reply_message)
-
-            # return { "reply": reply }
-
-        except Exception as e:
-            yield f"[Error]: {str(e)}"
-
-    return StreamingResponse(response_stream(), media_type="text/plain")
+        print("Managed to get to here")
+        print(response, flush=True)
+        print(f"Seeding loaded in {response.load_duration * pow(10, -9):.2f}s", flush=True)
+    except Exception as e:
+        print(e)
+    
 
 async def ask_model_stream(
         query: str, 
@@ -60,7 +30,7 @@ async def ask_model_stream(
         system_prompt: str = None,
         retry=False  # Flag to detect if this is a retry
     ):
-    print(query)
+    print(query, flush=True)
     
     messages = [ { "role": "user", "content": query } ]
 
@@ -86,11 +56,11 @@ async def ask_model_stream(
 
             # Append current content to sliding window
             sliding_window.append(content)
-            if len(sliding_window) > 10:
+            if len(sliding_window) > SLIDING_WINDOW_LENGTH:
                 sliding_window.pop(0)
 
             # Check for repetition if window is full
-            if len(sliding_window) == 10:
+            if len(sliding_window) == SLIDING_WINDOW_LENGTH:
                 window_concat = ''.join(sliding_window)
                 window_hash = hashlib.md5(window_concat.encode('utf-8')).hexdigest()
 
@@ -121,9 +91,12 @@ async def ask_model_stream(
         tokens_per_second = (
             last_part.eval_count / last_part.eval_duration
         ) * pow(10, 9)
-        print(last_part)
-        print(full_reply[-100:])
-        print(f"⏱️  Processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s")
+
+        print(last_part, flush=True)
+        print(full_reply[-100:], flush=True)
+        print(f"Loaded full response in {last_part.load_duration * pow(10, -9):.2f}s", flush=True)
+
+        print(f"⏱️  Processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s", flush=True)
 
     except Exception as e:
         yield {"type": "error", "content": f"[Error]: {str(e)}"}

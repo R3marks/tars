@@ -1,11 +1,12 @@
-from src.agents.chat import handle_chat_query, ask_model_stream
+from src.agents.chat import ask_model, ask_model_stream
 
-async def handle_query(query: str):
-    return await handle_chat_query(query)
-
-async def handle_query_ws(query: str, websocket):
+async def handle_query(query: str, websocket):
     model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
-    print("handling full query now")
+
+    print("Seeding full query model first", flush=True)
+    ask_model(query)
+
+    print("handling full query now", flush=True)
     async for stream in ask_model_stream(
         query, 
         model):

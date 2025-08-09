@@ -1,91 +1,59 @@
-import React from 'react';
-import ReactMarkdown from 'react-markdown';
+import React from "react";
+import ReactMarkdown from "react-markdown";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
-import './ChatMessage.css';
+import "./ChatMessage.css";
 
-export default React.memo(({ user, reply }) => (
-  <div className="chat-message">
-    <strong className="chat-window-input">User:</strong>
-    <ReactMarkdown
-      components={{
-        p: ({ node, children }) => {
-          const isOnlyInline = node.children?.every(
-            child => child.type === 'text' || (child.tagName === 'code' && child.properties?.className?.includes('inline-code'))
-          );
+export default React.memo(({ user, reply }) => {
+  const CodeRenderer = ({ node, className = "", children, ...props }) => {
+    const match = /language-(\w+)/.exec(className || "");
 
-          if (isOnlyInline) {
-            return <p className="chat-window-output">{children}</p>;
-          }
+    // Check if it's a multi-line single backtick code based on content
+    const isMultiLineSingleBacktick = !match && node?.children?.[0]?.value?.includes('\n');
 
-          return <>{children}</>; // Avoid wrapping if it contains block elements
-        },
-        code({ inline, className = "", children, ...props }) {
-          const match = /language-(\w+)/.exec(className || "");
-          const language = match?.[1];
+    // Determine the language: if match exists use it, otherwise if it's a multi-line single backtick, use 'text', otherwise no language (inline).
+    const language = match ? match[1] : (isMultiLineSingleBacktick ? 'text' : undefined);
 
-          // Always render inline code spans if inline is true
-          if (inline) {
-            return <code className="inline-code">{children}</code>;
-          }
+    if (match || isMultiLineSingleBacktick) {
+      // fenced code block with language
+      return (
+        <SyntaxHighlighter
+          style={oneDark}
+          language={language}
+          PreTag="div"
+          className="code-block"
+          {...props}
+        >
+          {String(children).replace(/\n$/, "")}
+        </SyntaxHighlighter>
+      );
+    }
+    
+    // inline code (or code with no language)
+    return <code className="inline-code">{children}</code>;
+  };
 
-          // If NOT inline but no language is specified → inline code in block context (e.g., lists)
-          if (!language) {
-            return <code className="inline-code">{children}</code>;
-          }
+  return (
+    <div className="chat-message">
+      {/* USER (left) */}
+      <div className="message user">
+        <div className="message-inner">
+          <strong className="chat-label">User:</strong>
+          <ReactMarkdown components={{ code: CodeRenderer }}>
+            {user ?? ""}
+          </ReactMarkdown>
+        </div>
+      </div>
 
-          // This is a fenced code block → render SyntaxHighlighter
-          return (
-            <SyntaxHighlighter
-              style={oneDark}
-              language={language}
-              PreTag="div"
-              className="code-block"
-              {...props}
-            >
-              {String(children).replace(/\n$/, '')}
-            </SyntaxHighlighter>
-          );
-        }
-      }}
-    >
-      {user}
-    </ReactMarkdown>
-
-    <strong className="chat-window-output">TARS:</strong>
-    <ReactMarkdown
-      components={{
-        p: ({ node, children }) => {
-          const isCodeBlock = node.children?.some(child => child.tagName === 'code');
-          if (isCodeBlock) {
-            return <>{children}</>;  // No <p> wrapper
-          }
-          return <p className="chat-window-output">{children}</p>;
-        },
-
-        code({ node, inline, className = "", children, ...props }) {
-          const match = /language-(\w+)/.exec(className || "");
-          const language = match?.[1];
-
-          if (inline || node?.parent?.type === 'paragraph') {
-            return <code className="inline-code">{children}</code>;
-          }
-
-          return (
-            <SyntaxHighlighter
-              style={oneDark}
-              language={language || "text"}
-              PreTag="div"
-              className="code-block"
-              {...props}
-            >
-              {String(children).replace(/\n$/, '')}
-            </SyntaxHighlighter>
-          );
-        }
-      }}
-    >
-      {reply}
-    </ReactMarkdown>
-  </div>
-));
+      {/* TARS (right) */}
+      <div className="message tars">
+        <div className="message-inner">
+          <strong className="chat-label">TARS:</strong>
+          <ReactMarkdown components={{ code: CodeRenderer }}>
+            {reply ?? ""}
+          </ReactMarkdown>
+        </div>
+      </div>
+    </div>
+  );
+});
