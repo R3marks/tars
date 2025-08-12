@@ -15,28 +15,32 @@ function App() {
     // Helper function to format message chunk
     function formatMessageChunk(type, message) {
       let prefix = "";
-      let suffix = "\n\n";  // Always add newline for now
+      let suffix = "";
+      let newLine = "\n\n";  // Always add newline for now
 
       switch (type) {
         case "ack":
           prefix = "[ACK] ";
+          suffix = " [/ACK]"
           break;
         case "route_decision":
           prefix = "[ROUTER] ";
+          suffix = " [/ROUTER]"
           break;
         case "final_response":
           prefix = "";
           suffix = "";  // Streaming chunks—no newline after each fragment
+          newLine = "";
           break;
         case "error":
           prefix = "⚠️ ERROR: ";
-          suffix = "\n";
+          newLine = "\n";
           break;
         default:
           break;
       }
 
-      return `${prefix}${message}${suffix}`;
+      return `${prefix}${message}${suffix}${newLine}`;
     }
 
     ws.current.onmessage = (event) => {
@@ -51,13 +55,19 @@ function App() {
 
         const formattedChunk = formatMessageChunk(dataObj.type, dataObj.message);
 
-        if (dataObj.type === "ack" || dataObj.type === "route_decision" || dataObj.type === "final_response") {
+        if (dataObj.type === "ack") {
+          updated[updated.length - 1].reply = formattedChunk;
+        }
+
+        if (dataObj.type === "route_decision" || dataObj.type === "final_response") {
           // Always update last message
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
             reply: updated[updated.length - 1].reply + formattedChunk
           };
-        } else if (dataObj.type === "error") {
+        }
+
+        if (dataObj.type === "error") {
           // Errors get a new message block
           updated.push({ user: null, reply: formattedChunk });
         }

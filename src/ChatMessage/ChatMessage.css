@@ -1,7 +1,15 @@
 .chat-message {
   margin-bottom: 12px;
   width: 100%;
-  display: block;
+  height: auto;
+  display: flex;        /* stack user and tars vertically */
+  flex-direction: column;
+  align-items: stretch; /* make children fill width */
+}
+
+.chat-message ul {
+  padding-left: 40px;
+  list-style-type: disc; /* or 'decimal' for numbered lists */
 }
 
 /* container for each side's bubble/area */
@@ -9,12 +17,14 @@
   display: flex;
   width: 100%;
   margin: 6px 0;
+  /* align-items: flex-start; */
 }
 
 /* left-aligned user block */
 .message.user {
   justify-content: flex-start;
   height: auto;
+  width: auto;
   text-align: left;     /* text alignment inside block */
   color: whitesmoke;    /* user text color */
 }
@@ -23,13 +33,15 @@
 .message.tars {
   justify-content: flex-end;
   height: auto;
-  text-align: right;    /* text alignment inside block */
+  text-align: left;    /* text alignment inside block */
   color: lightseagreen; /* assistant text color */
 }
 
 /* Keep the content width manageable (avoid full-width stretching) */
 .message-inner {
-  max-width: 100%;
+  width: auto;
+  /* max-width: 100%; */
+  word-break: break-word;
   /* optional styling: background, padding, border-radius if you want bubbles */
   /* background: rgba(255,255,255,0.03); */
   /* padding: 6px 10px; */
