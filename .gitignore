@@ -36,3 +36,4 @@ android_docs_markdown/
 android_docs_markdown_cleaned/
 chroma_db_store
 commands.txt
+image_generator.py

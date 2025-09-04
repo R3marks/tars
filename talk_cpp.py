@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 GEMMA_PATH = "T:/Models/gemma-3n-E4B-it-Q2_K.gguf"
 QWEN_PATH = "T:/Models/Qwen3-4B-Instruct-2507-UD-Q8_K_XL.gguf"
+QWEN30B_PATH = "T:/Models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
+QWENCODER_PATH = "T:/Models/Qwen3-Coder-30B-A3B-Instruct-Q3_K_S.gguf"
+GPT_PATH = "T:/Models/gpt-oss-20b-Q4_K_M.gguf"
 
 def load_model(path: str) -> Llama:
     logger.info(f"Loading model from {path}")
@@ -48,10 +51,13 @@ def unload_model(llm: Llama, name: str):
 def main():
     # Start with no model loaded
     current_llm = None
-    current_name = "gemma"
+    current_name = "qwenCoder"
     models = {
         "gemma": GEMMA_PATH,
-        "qwen": QWEN_PATH
+        "qwen": QWEN_PATH,
+        "qwen30b": QWEN30B_PATH,
+        "qwenCoder": QWENCODER_PATH,
+        "gpt": GPT_PATH
     }
 
     messages = []
