@@ -5,11 +5,14 @@ from src.message_structures.conversation_manager import ConversationManager
 from src.message_structures.message import Message
 from src.agents.router import handle_query
 from src.agents.chat import ask_model_stream
+from src.infer.OllamaInfer import OllamaInfer
 
 api_router = APIRouter()
 
 # Use manager to get conversation
 conversation_manager = ConversationManager()
+
+ollama = OllamaInfer()
 
 # New WebSocket Endpoint
 @api_router.websocket("/ws/agent")
@@ -42,7 +45,8 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             async for stream in ask_model_stream(
                 query, 
                 model, 
-                conversation_manager):
+                conversation_manager,
+                ollama):
                 ack_message += stream["content"]
 
             # Now send the full ACK in one message
@@ -64,6 +68,8 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             await handle_query(
                 query, 
                 websocket, 
-                conversation_manager)
+                conversation_manager,
+                ollama)
+            
     except WebSocketDisconnect:
         print("Client disconnected")
