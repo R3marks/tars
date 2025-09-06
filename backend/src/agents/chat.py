@@ -14,8 +14,6 @@ def ask_model(
         inference_provider: InferInterface,
     ):
 
-    inference_provider.load_model(model)
-
     return inference_provider.ask_model(
         query,
         model,
@@ -29,8 +27,6 @@ async def ask_model_stream(
         inference_provider: InferInterface,
         system_prompt: str = None
     ):
-
-    inference_provider.load_model(model)
 
     async for chunk in inference_provider.ask_model_stream(
         query,

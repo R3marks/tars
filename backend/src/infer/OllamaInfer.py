@@ -5,9 +5,6 @@ from src.message_structures.conversation_manager import ConversationManager
 
 class OllamaInfer(InferInterface):
 
-    def load_model(self, model: str):
-        pass
-
     def ask_model(
             self, 
             query: str,

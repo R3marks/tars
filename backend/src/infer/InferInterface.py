@@ -5,10 +5,6 @@ from src.message_structures.conversation_manager import ConversationManager
 class InferInterface(ABC):
 
     @abstractmethod
-    def load_model(self, model: str):
-        pass
-
-    @abstractmethod
     def ask_model(
         self, 
         query: str,

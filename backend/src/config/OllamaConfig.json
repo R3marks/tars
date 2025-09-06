@@ -1,0 +1,10 @@
+{
+    "Models": [
+        {
+            "name": "QWEN3_1.7B",
+            "path": "qwen3:1.7b",
+            "inference_speed": "FAST",
+            "role": "GENERAL"
+        }
+    ]
+}

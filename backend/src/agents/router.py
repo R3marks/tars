@@ -2,20 +2,22 @@ from src.message_structures.message import Message
 from src.message_structures.conversation_manager import ConversationManager
 from src.agents.chat import ask_model, ask_model_stream
 from src.infer.InferInterface import InferInterface
+from src.config.ModelConfig import ModelConfig
 
 async def handle_query(
         query: str, 
         websocket, 
         conversation_manager: ConversationManager,
-        inference_provider: InferInterface):
+        config: ModelConfig):
     # model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
-    model = "qwen3:1.7b"
+    if len(config.models) == 1:
+                model = config.models.get("QWEN3_1.7B").path
 
     print("Seeding full query model first", flush=True)
     ask_model(
         query, 
         model,
-        inference_provider)
+        config.engine)
 
     print("handling full query now", flush=True)
     response = ""
@@ -23,7 +25,7 @@ async def handle_query(
         query, 
         model,
         conversation_manager,
-        inference_provider):
+        config.engine):
         
         response += stream["content"]
         await websocket.send_json({

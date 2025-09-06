@@ -6,13 +6,15 @@ from src.message_structures.message import Message
 from src.agents.router import handle_query
 from src.agents.chat import ask_model_stream
 from src.infer.OllamaInfer import OllamaInfer
+from src.config.ModelConfig import ModelConfig
+from src.config.InferenceProvider import InferenceProvider
 
 api_router = APIRouter()
 
 # Use manager to get conversation
 conversation_manager = ConversationManager()
 
-ollama = OllamaInfer()
+config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/OllamaConfig.json", InferenceProvider.OLLAMA)
 
 # New WebSocket Endpoint
 @api_router.websocket("/ws/agent")
@@ -37,7 +39,9 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             conversation_history.append_message(query_message)
 
             # model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
-            model = "qwen3:1.7b"
+            # model = "qwen3:1.7b"
+            if len(config.models) == 1:
+                model = config.models.get("QWEN3_1.7B").path
             acknowledgement_prompt = """
             Simply acknowledge receipt of the query in the same way a person might say "Huh" or "let me have a think". DO NOT EXCEED MORE THAN ONE LINE IN YOUR RESPONSE. 
             """
@@ -46,7 +50,7 @@ async def agent_websocket_endpoint(websocket: WebSocket):
                 query, 
                 model, 
                 conversation_manager,
-                ollama):
+                config.engine):
                 ack_message += stream["content"]
 
             # Now send the full ACK in one message
@@ -69,7 +73,7 @@ async def agent_websocket_endpoint(websocket: WebSocket):
                 query, 
                 websocket, 
                 conversation_manager,
-                ollama)
+                config)
             
     except WebSocketDisconnect:
         print("Client disconnected")
