@@ -1,4 +1,6 @@
 import json
+from collections import defaultdict
+from typing import Dict, List
 
 from src.infer.InferInterface import InferInterface
 from src.infer.OllamaInfer import OllamaInfer
@@ -11,6 +13,8 @@ class ModelConfig:
     provider: InferenceProvider
     engine: InferInterface
     models: dict[str, Model]
+    models_by_speed: dict[InferenceSpeed, List[Model]]
+    models_by_role: dict[Role, List[Model]]
 
     def __init__(
             self, 
@@ -24,6 +28,8 @@ class ModelConfig:
             self.engine = OllamaInfer()
 
         self.models = dict()
+        self.models_by_speed = defaultdict(list)
+        self.models_by_role = defaultdict(list)
 
         with open(config_path) as file:
             config = json.load(file)
@@ -35,4 +41,6 @@ class ModelConfig:
                     role = Role[model_config["role"]],
                 )
                 self.models[model.name] = model
+                self.models_by_speed[model.inference_speed].append(model)
+                self.models_by_role[model.role].append(model)
             

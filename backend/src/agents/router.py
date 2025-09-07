@@ -3,27 +3,41 @@ from src.message_structures.conversation_manager import ConversationManager
 from src.agents.chat import ask_model, ask_model_stream
 from src.infer.InferInterface import InferInterface
 from src.config.ModelConfig import ModelConfig
+from src.config.InferenceSpeed import InferenceSpeed
+from src.config.Role import Role
 
 async def handle_query(
         query: str, 
         websocket, 
         conversation_manager: ConversationManager,
         config: ModelConfig):
-    # model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
-    if len(config.models) == 1:
-                model = config.models.get("QWEN3_1.7B").path
+
+    # Load in a FAST model for seeding
+    fast_model = next(iter(config.models_by_speed.get(InferenceSpeed.FAST)))
+
+    # Otherwise load in the first available model
+    if fast_model is None:
+        fast_model = next(iter(config.models.values()))
 
     print("Seeding full query model first", flush=True)
     ask_model(
         query, 
-        model,
+        fast_model.path,
         config.engine)
 
     print("handling full query now", flush=True)
+    # Load in an INSTRUCT model for handling query, or the first available model
+    instruct_model = next(iter(config.models.values()), None)
+
+    instruct_models = config.models_by_role.get(Role.INSTRUCT, [])
+
+    if instruct_models:
+        instruct_model = next(iter(instruct_models))
+
     response = ""
     async for stream in ask_model_stream(
         query, 
-        model,
+        instruct_model.path,
         conversation_manager,
         config.engine):
         

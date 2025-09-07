@@ -8,6 +8,7 @@ from src.agents.chat import ask_model_stream
 from src.infer.OllamaInfer import OllamaInfer
 from src.config.ModelConfig import ModelConfig
 from src.config.InferenceProvider import InferenceProvider
+from src.config.InferenceSpeed import InferenceSpeed
 
 api_router = APIRouter()
 
@@ -38,17 +39,21 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             # Append the query to the conversation history
             conversation_history.append_message(query_message)
 
-            # model = "hf.co/unsloth/gemma-3n-E4B-it-GGUF:Q2_K_L"
-            # model = "qwen3:1.7b"
-            if len(config.models) == 1:
-                model = config.models.get("QWEN3_1.7B").path
+            # Load in a FAST model for acknowledgement
+            fast_model = next(iter(config.models.values()), None)
+
+            fast_models = config.models_by_speed.get(InferenceSpeed.FAST, [])
+
+            if fast_models:
+                instruct_model = next(iter(fast_models))
+
             acknowledgement_prompt = """
             Simply acknowledge receipt of the query in the same way a person might say "Huh" or "let me have a think". DO NOT EXCEED MORE THAN ONE LINE IN YOUR RESPONSE. 
             """
             ack_message = ""
             async for stream in ask_model_stream(
                 query, 
-                model, 
+                fast_model.path, 
                 conversation_manager,
                 config.engine):
                 ack_message += stream["content"]
