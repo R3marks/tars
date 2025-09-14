@@ -1,0 +1,34 @@
+{
+    "Models": [
+        {
+            "name": "GEMMA_3N_E4B_IT_Q2_K",
+            "path": "T:/Models/gemma-3n-E4B-it-Q2_K.gguf",
+            "inference_speed": "FAST",
+            "role": "INSTRUCT"
+        },
+        {
+            "name": "GPT_OSS_20B_Q4_K_M",
+            "path": "T:/Models/gpt-oss-20b-Q4_K_M.gguf",
+            "inference_speed": "SLOW",
+            "role": "THINKER"
+        },
+        {
+            "name": "QWEN3_4B_INSTRUCT_2507_UD_Q8_K_XL",
+            "path": "T:/Models/Qwen3-4B-Instruct-2507-UD-Q8_K_XL.gguf",
+            "inference_speed": "FAST",
+            "role": "GENERAL"
+        },
+        {
+            "name": "QWEN3_30B_A3B_INSTRUCT_2507_Q4_K_M",
+            "path": "T:/Models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf",
+            "inference_speed": "SLOW",
+            "role": "INSTRUCT"
+        },
+        {
+            "name": "QWEN3_CODER_30B_A3B_INSTRUCT_Q3_K_S",
+            "path": "T:/Models/Qwen3-Coder-30B-A3B-Instruct-Q3_K_S.gguf",
+            "inference_speed": "SLOW",
+            "role": "CODER"
+        }
+    ]
+}

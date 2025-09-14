@@ -1,7 +1,10 @@
+import logging
 from ollama import chat
 
 from src.infer.InferInterface import InferInterface
 from src.message_structures.conversation_manager import ConversationManager
+
+logger = logging.getLogger("uvicorn.error")
 
 class OllamaInfer(InferInterface):
 
@@ -21,10 +24,10 @@ class OllamaInfer(InferInterface):
                 stream = False
             )
 
-            print(response["message"]["content"], flush=True)
-            print(f"Seeding loaded in {response.load_duration * pow(10, -9):.2f}s", flush=True)
+            # print(response["message"]["content"], flush=True)
+            logger.info(f"Seeding loaded in {response.load_duration * pow(10, -9):.2f}s", flush=True)
         except Exception as e:
-            print(e)
+            logger.error(e)
 
     async def ask_model_stream(
             self, 
@@ -33,7 +36,7 @@ class OllamaInfer(InferInterface):
             conversation_manager: ConversationManager,
             system_prompt: str = None,
             ):
-        print(query, flush=True)
+        # print(query, flush=True)
     
         conversation_history = conversation_manager.get_conversation_from_id(1)
         messages = conversation_history.return_message_history()
@@ -63,11 +66,11 @@ class OllamaInfer(InferInterface):
                 last_part.eval_count / last_part.eval_duration
             ) * pow(10, 9)
 
-            print(last_part, flush=True)
-            print(full_reply[-100:], flush=True)
-            print(f"Loaded full response in {last_part.load_duration * pow(10, -9):.2f}s", flush=True)
+            # print(last_part, flush=True)
+            # print(full_reply[-100:], flush=True)
+            logger.info(f"Loaded full response in {last_part.load_duration * pow(10, -9):.2f}s", flush=True)
 
-            print(f"⏱️  Processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s", flush=True)
+            logger.info(f"⏱️  Processed prompt with {last_part.prompt_eval_count} tokens, outputted {last_part.eval_count} tokens in {last_part.total_duration * pow(10, -9):.2f}s at {tokens_per_second} tokens/s", flush=True)
 
         except Exception as e:
             yield {"type": "error", "content": f"[Error]: {str(e)}"}

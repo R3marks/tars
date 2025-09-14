@@ -4,6 +4,7 @@ from typing import Dict, List
 
 from src.infer.InferInterface import InferInterface
 from src.infer.OllamaInfer import OllamaInfer
+from src.infer.LlamaCppInfer import LlamaCppInfer
 from src.config.InferenceProvider import InferenceProvider
 from src.config.Model import Model
 from src.config.InferenceSpeed import InferenceSpeed
@@ -26,6 +27,9 @@ class ModelConfig:
 
         if provider == InferenceProvider.OLLAMA:
             self.engine = OllamaInfer()
+
+        if provider == InferenceProvider.LLAMA_CPP:
+            self.engine = LlamaCppInfer()
 
         self.models = dict()
         self.models_by_speed = defaultdict(list)

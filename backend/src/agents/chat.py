@@ -1,12 +1,11 @@
 from ollama import chat
-import hashlib
-import asyncio
-import json
-import re
+import logging
 from fastapi.responses import StreamingResponse
 from difflib import SequenceMatcher
 from src.infer.InferInterface import InferInterface
 from src.message_structures.conversation_manager import ConversationManager
+
+logger = logging.getLogger("uvicorn.error")
 
 def ask_model(
         query: str,

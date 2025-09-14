@@ -1,5 +1,6 @@
 import json
 import asyncio
+import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.message_structures.conversation_manager import ConversationManager
 from src.message_structures.message import Message
@@ -10,24 +11,28 @@ from src.config.ModelConfig import ModelConfig
 from src.config.InferenceProvider import InferenceProvider
 from src.config.InferenceSpeed import InferenceSpeed
 
+logger = logging.getLogger("uvicorn.error")
+
 api_router = APIRouter()
 
 # Use manager to get conversation
 conversation_manager = ConversationManager()
 
-config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/OllamaConfig.json", InferenceProvider.OLLAMA)
+# config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/OllamaConfig.json", InferenceProvider.OLLAMA)
+
+config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/LlamaCppConfig.json", InferenceProvider.LLAMA_CPP)
 
 # New WebSocket Endpoint
 @api_router.websocket("/ws/agent")
 async def agent_websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    print("Websocket connected")
+    logger.info("Websocket connected")
     try:
         while True:
             data = await websocket.receive_text()
             payload = json.loads(data)
             query = payload.get('message')
-            print(f"Query received in api {query}")
+            logger.info(f"Query received in api {query}")
 
             query_message: Message = Message(
                 role = "user", 
@@ -39,13 +44,15 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             # Append the query to the conversation history
             conversation_history.append_message(query_message)
 
-            # Load in a FAST model for acknowledgement
+            # Use the first model available by default
             fast_model = next(iter(config.models.values()), None)
 
+            # Otherwise, attempt to load in all fast models
             fast_models = config.models_by_speed.get(InferenceSpeed.FAST, [])
 
+            # Load in a FAST model for acknowledgement
             if fast_models:
-                instruct_model = next(iter(fast_models))
+                fast_model = next(iter(fast_models))
 
             acknowledgement_prompt = """
             Simply acknowledge receipt of the query in the same way a person might say "Huh" or "let me have a think". DO NOT EXCEED MORE THAN ONE LINE IN YOUR RESPONSE. 
@@ -81,4 +88,4 @@ async def agent_websocket_endpoint(websocket: WebSocket):
                 config)
             
     except WebSocketDisconnect:
-        print("Client disconnected")
+        logger.warning("Client disconnected")
