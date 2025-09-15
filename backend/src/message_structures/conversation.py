@@ -14,7 +14,12 @@ class Conversation():
     def append_message(self, message: Message):
         self.messages.append(message)
 
-    def update_last_message(self, update: str):
+    def update_query(self, new_query: str):
+        last_message = self.messages.pop(1)
+        updated_message = last_message.update(new_query)
+        self.messages.append(updated_message)
+
+    def add_context_to_next_query(self, update: str):
         last_message = self.messages.pop(1)
         updated_message = last_message.add_context(update)
         self.messages.append(updated_message)

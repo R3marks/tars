@@ -3,7 +3,7 @@ import logging
 from fastapi.responses import StreamingResponse
 from difflib import SequenceMatcher
 from src.infer.InferInterface import InferInterface
-from src.message_structures.conversation_manager import ConversationManager
+from src.message_structures.message import Message
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -20,17 +20,15 @@ def ask_model(
     
 
 async def ask_model_stream(
-        query: str, 
         model: str, 
-        conversation_manager: ConversationManager,
+        messages: list[Message],
         inference_provider: InferInterface,
         system_prompt: str = None
     ):
 
     async for chunk in inference_provider.ask_model_stream(
-        query,
         model,
-        conversation_manager,
+        messages,
         system_prompt
         ):
         yield chunk

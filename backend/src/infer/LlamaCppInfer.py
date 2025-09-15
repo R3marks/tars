@@ -87,19 +87,13 @@ class LlamaCppInfer(InferInterface):
 
     async def ask_model_stream(
         self, 
-        query: str,
         model: str,
-        conversation_manager: ConversationManager,
+        messages: list[Message],
         system_prompt: str = None,
         ):
-        logger.info(query)
 
         # Ready model
         llm: Llama = self.ready_model(model)
-
-        # Load in conversation history
-        conversation_history: Conversation = conversation_manager.get_conversation_from_id(1)
-        messages: list[Message] = conversation_history.return_message_history()
 
         if system_prompt:
             messages.insert(

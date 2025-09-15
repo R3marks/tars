@@ -32,7 +32,7 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_text()
             payload = json.loads(data)
             query = payload.get('message')
-            logger.info(f"Query received in api {query}")
+            logger.info(f"Query received in api {query[:10]}")
 
             query_message: Message = Message(
                 role = "user", 
@@ -54,15 +54,24 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             if fast_models:
                 fast_model = next(iter(fast_models))
 
-            acknowledgement_prompt = """
-            Simply acknowledge receipt of the query in the same way a person might say "Huh" or "let me have a think". DO NOT EXCEED MORE THAN ONE LINE IN YOUR RESPONSE. 
+            acknowledgement_prompt = f"""
+            Simply acknowledge receipt of the below query in the same way a person might say "Huh" or "let me have a think". DO NOT EXCEED MORE THAN ONE LINE IN YOUR RESPONSE.
+
+            QUERY:
+            {query}
             """
+
+            ack_request = [Message(
+                role = "user",
+                content = acknowledgement_prompt
+            )]
+
             ack_message = ""
             async for stream in ask_model_stream(
-                query, 
                 fast_model.path, 
-                conversation_manager,
+                ack_request,
                 config.engine):
+
                 ack_message += stream["content"]
 
             # Now send the full ACK in one message
@@ -84,7 +93,7 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             await handle_query(
                 query, 
                 websocket, 
-                conversation_manager,
+                conversation_history,
                 config)
             
     except WebSocketDisconnect:

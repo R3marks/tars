@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from src.message_structures.conversation_manager import ConversationManager
+from src.message_structures.message import Message
 
 class InferInterface(ABC):
 
@@ -15,9 +15,8 @@ class InferInterface(ABC):
     @abstractmethod
     async def ask_model_stream(
         self, 
-        query: str,
         model: str,
-        conversation_manager: ConversationManager,
+        messages: list[Message],
         system_prompt: str = None,
         ):
         pass
