@@ -4,8 +4,7 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.message_structures.conversation_manager import ConversationManager
 from src.message_structures.message import Message
-from src.agents.router import handle_query
-from src.agents.chat import ask_model_stream
+from src.app.router import handle_query
 from src.infer.OllamaInfer import OllamaInfer
 from src.config.ModelConfig import ModelConfig
 from src.config.InferenceProvider import InferenceProvider
@@ -67,8 +66,8 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             )]
 
             ack_message = ""
-            async for stream in ask_model_stream(
-                fast_model.path, 
+            async for stream in config.manager.ask_model_stream(
+                fast_model, 
                 ack_request,
                 config.engine):
 

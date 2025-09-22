@@ -8,14 +8,14 @@ class InferInterface(ABC):
     def ask_model(
         self, 
         query: str,
-        model: str
+        llm
         ) -> str:
         pass
 
     @abstractmethod
     async def ask_model_stream(
         self, 
-        model: str,
+        llm,
         messages: list[Message],
         system_prompt: str = None,
         ):

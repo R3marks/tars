@@ -7,5 +7,7 @@ from src.config.Role import Role
 class Model():
     name: str
     path: str
+    size: float
+    fits_in_gpu: bool
     inference_speed: InferenceSpeed
     role: Role

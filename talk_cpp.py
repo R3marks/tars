@@ -1,5 +1,6 @@
 import logging
 from llama_cpp import ChatCompletionStreamResponseChoice, ChatCompletionStreamResponseDelta, CreateChatCompletionStreamResponse, Llama
+from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
 import gc
 import torch
 import time
@@ -27,9 +28,11 @@ def load_model(path: str) -> Llama:
     try:
         llm = Llama(
             model_path=path,
-            n_gpu_layers=-1,
-            n_batch=1024,
-            n_ctx=4096
+            n_gpu_layers=25,
+            n_batch=512, #1024,
+            n_ctx=8192, # 4096,
+            draft_model=LlamaPromptLookupDecoding(),
+            logits_all=True
         )
         logger.info(f"Loaded model from {path} in {time.time() - start_time:.2f} seconds")
         return llm
@@ -42,6 +45,8 @@ def unload_model(llm: Llama, name: str):
     try:
         del llm
         gc.collect()
+        logger.error(torch.cuda)
+        logger.error(torch.cuda.is_available())
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             logger.info(f"CUDA memory cleared. VRAM free: {torch.cuda.memory_available()/1024**2:.2f} MiB")
@@ -79,7 +84,14 @@ def main():
         # Swap model if needed
         if target_name != current_name or current_llm is None:
             if current_llm is not None:
-                unload_model(current_llm, current_name)
+                logger.info(f"Unloading {current_name}...")
+                # The 'unload_model' function can be simplified to just clear CUDA cache
+                # The real memory release happens when the reference is deleted below.
+                del current_llm 
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
             logger.info(f"Switching to {target_name}")
             current_llm = load_model(models[target_name])
             current_name = target_name
