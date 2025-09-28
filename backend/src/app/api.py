@@ -4,6 +4,9 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.message_structures.conversation_manager import ConversationManager
 from src.message_structures.message import Message
+from src.infer.LlamaCppInfer import LlamaCppInfer
+from src.infer.ModelManager import ModelManager
+from src.infer.LlamaCppModelManager import LlamaCppModelManager
 from src.app.router import handle_query
 from src.infer.OllamaInfer import OllamaInfer
 from src.config.ModelConfig import ModelConfig
@@ -20,6 +23,8 @@ conversation_manager = ConversationManager()
 # config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/OllamaConfig.json", InferenceProvider.OLLAMA)
 
 config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/LlamaCppConfig.json", InferenceProvider.LLAMA_CPP)
+
+model_manager = LlamaCppModelManager(config)
 
 # New WebSocket Endpoint
 @api_router.websocket("/ws/agent")
@@ -44,10 +49,10 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             conversation_history.append_message(query_message)
 
             # Use the first model available by default
-            fast_model = next(iter(config.models.values()), None)
+            fast_model = next(iter(model_manager.config.models.values()), None)
 
             # Otherwise, attempt to load in all fast models
-            fast_models = config.models_by_speed.get(InferenceSpeed.FAST, [])
+            fast_models = model_manager.config.models_by_speed.get(InferenceSpeed.FAST, [])
 
             # Load in a FAST model for acknowledgement
             if fast_models:
@@ -66,10 +71,9 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             )]
 
             ack_message = ""
-            async for stream in config.manager.ask_model_stream(
+            async for stream in model_manager.ask_model_stream(
                 fast_model, 
-                ack_request,
-                config.engine):
+                ack_request):
 
                 ack_message += stream["content"]
 
@@ -93,7 +97,7 @@ async def agent_websocket_endpoint(websocket: WebSocket):
                 query, 
                 websocket, 
                 conversation_history,
-                config)
+                model_manager)
             
     except WebSocketDisconnect:
         logger.warning("Client disconnected")

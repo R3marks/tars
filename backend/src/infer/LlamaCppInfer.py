@@ -2,6 +2,7 @@ from llama_cpp import ChatCompletionStreamResponseChoice, ChatCompletionStreamRe
 import gc
 import torch
 import time
+import json
 import logging
 
 from src.infer.InferInterface import InferInterface
@@ -17,29 +18,41 @@ class LlamaCppInfer(InferInterface):
     loaded_model_name: str = None
 
     def ask_model(
-            self, 
-            query: str,
-            llm: Llama
-            ) -> str: 
+            self,
+            llm: Llama,
+            messages: list[Message],
+            system_prompt: str = None,
+            tools: list = None,  # Optional tools param
+            tools_choice: str = "auto"
+            ) -> str:
+        
+        if system_prompt:
+            messages.insert(
+                0, { 
+                "role": "system", 
+                "content": system_prompt 
+                })
 
         try:
-            request: ChatCompletionRequestUserMessage = {
-                "role": "user",
-                "content": query
-            }
-
+            logger.info(f"Asking model with messages: {messages[-1].content[:20]}...")
+            logger.error(type(llm))
             response: CreateChatCompletionResponse = llm.create_chat_completion(
-                messages=[request],
+                messages=messages,
+                tools=tools if tools else None,  # Pass tools
+                tool_choice=tools_choice,
                 stream=False,
                 temperature=0.3
             )
 
-            choice: ChatCompletionResponseChoice = response["choices"]
-            message: ChatCompletionResponseMessage = choice[0]["message"]
+            choice: ChatCompletionResponseChoice = response["choices"][0]
+            message: ChatCompletionResponseMessage = choice["message"]
 
-            return message
+            # Return content or JSON stringified tool_calls
+            return json.dumps(message.get("tool_calls", message.get("content", "")))
+
         except Exception as e:
-            logger.error(f"Error asking model {self.loaded_model_name}: {e}")
+            logger.error(f"Error asking model: {e}")
+            return "Error during inference."
 
     async def ask_model_stream(
         self, 

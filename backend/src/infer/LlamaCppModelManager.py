@@ -8,8 +8,10 @@ from collections import OrderedDict
 from llama_cpp import Llama
 from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
 
+from src.config.ModelConfig import ModelConfig
 from src.config.Model import Model
 from src.infer.InferInterface import InferInterface
+from src.infer.LlamaCppInfer import LlamaCppInfer
 from src.message_structures.message import Message
 from src.infer.ModelManager import ModelManager
 
@@ -17,29 +19,43 @@ logger = logging.getLogger("uvicorn.error")
 
 class LlamaCppModelManager(ModelManager):
 
-    def __init__(self, max_loaded: int = 2):
+    def __init__(
+            self, 
+            config: ModelConfig,  
+            max_loaded: int = 2):
+        
+        self.config = config
+        self.inference_engine = LlamaCppInfer()
+        # super(config, inference_engine)
+
         self.loaded_models: Dict[str, Model] = OrderedDict()
         self.max_loaded = max_loaded
+        
 
     def ask_model(
         self,
-        query: str,
+        messages: list[Message],
         model: Model,
-        inference_provider: InferInterface,
+        tools = None,
+        system_prompt: str = None
     ):
         llm = self.ready_model(model)
-        return inference_provider.ask_model(query, llm)
+
+        return self.inference_engine.ask_model(
+            llm, 
+            messages,
+            tools=tools,
+            system_prompt=system_prompt)
 
     async def ask_model_stream(
         self,
         model: Model,
         messages: list[Message],
-        inference_provider: InferInterface,
         system_prompt: str = None
     ):
         llm = self.ready_model(model)
 
-        async for chunk in inference_provider.ask_model_stream(
+        async for chunk in self.inference_engine.ask_model_stream(
             llm, 
             messages, 
             system_prompt):

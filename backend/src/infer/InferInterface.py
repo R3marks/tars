@@ -6,9 +6,12 @@ class InferInterface(ABC):
 
     @abstractmethod
     def ask_model(
-        self, 
-        query: str,
-        llm
+        self,
+        llm,
+        messages: list[Message],
+        system_prompt: str = None,
+        tools = None,
+        tool_choice: str = "auto"
         ) -> str:
         pass
 
