@@ -34,8 +34,8 @@ class LlamaCppModelManager(ModelManager):
 
     def ask_model(
         self,
-        messages: list[Message],
         model: Model,
+        messages: list[Message],
         tools = None,
         system_prompt: str = None
     ):
@@ -92,8 +92,8 @@ class LlamaCppModelManager(ModelManager):
                 llm = Llama(
                     model_path=model.path,
                     n_gpu_layers=gpu_layers,
-                    n_batch=512,
-                    n_ctx=8192,
+                    n_batch=1024,
+                    n_ctx=32768,
                     verbose=False,
                 )
             else:

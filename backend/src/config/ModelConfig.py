@@ -21,8 +21,6 @@ class ModelConfig:
 
         self.provider = provider
 
-        # TODO: Config shouldnt store the manager and the engine
-
         self.models = dict()
         self.models_by_speed = defaultdict(list)
         self.models_by_role = defaultdict(list)

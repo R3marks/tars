@@ -24,8 +24,8 @@ class ModelManager(ABC):
     @abstractmethod
     def ask_model(
         self,
-        query: str,
         model: Model,
+        messages: list[Message],
         tools = None,
         system_prompt: str = None
     ):

@@ -7,7 +7,6 @@ from src.config.ModelConfig import ModelConfig
 from src.config.InferenceSpeed import InferenceSpeed
 from src.config.Role import Role
 from src.agents.read_write_agent import read_write
-from src.agents.tool_enabled_agent import tool_enabled_agent
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -23,7 +22,7 @@ async def handle_query(
     # Load in an INSTRUCT model for handling query, or the first available model
     instruct_model = next(iter(model_manager.config.models.values()), None)
 
-    instruct_models = model_manager.config.models_by_role.get(Role.INSTRUCT, [])
+    instruct_models = model_manager.config.models_by_role.get(Role.GENERAL, [])
 
     if instruct_models:
         # instruct_model = instruct_models[-1] 
@@ -36,6 +35,8 @@ async def handle_query(
     # response = model_manager.ask_model(instruct_model, query)
     # logger.error(response)
 
+    # === Regular chat === #
+
     # response = ""
     # async for stream in model_manager.ask_model_stream(
     #     instruct_model,
@@ -47,10 +48,7 @@ async def handle_query(
     #         "message": stream["content"]
     #         })
 
-    # response = await tool_enabled_agent(
-    #     instruct_model, 
-    #     conversation_history.return_message_history(), 
-    #     model_manager)
+    # === Agentic Tool Use === #
 
     response = read_write(
         query,

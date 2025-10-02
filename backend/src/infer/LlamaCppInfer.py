@@ -35,7 +35,7 @@ class LlamaCppInfer(InferInterface):
 
         try:
             logger.info(f"Asking model with messages: {messages[-1].content[:20]}...")
-            logger.error(type(llm))
+            
             response: CreateChatCompletionResponse = llm.create_chat_completion(
                 messages=messages,
                 tools=tools if tools else None,  # Pass tools
