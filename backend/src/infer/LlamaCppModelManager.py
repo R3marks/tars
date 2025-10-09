@@ -30,6 +30,21 @@ class LlamaCppModelManager(ModelManager):
 
         self.loaded_models: Dict[str, Model] = OrderedDict()
         self.max_loaded = max_loaded
+
+    def ask_model_in_chunks(
+        self,
+        model: Model,
+        messages: list[Message],
+        tools = None,
+        system_prompt: str = None
+    ):
+        llm = self.ready_model(model)
+
+        return self.inference_engine.ask_model_in_chunks(
+            llm, 
+            messages,
+            tools=tools,
+            system_prompt=system_prompt)
         
 
     def ask_model(
@@ -144,7 +159,7 @@ class LlamaCppModelManager(ModelManager):
                 model_size_gb = model.size
                 if model_size_gb < total_memory * 0.9:
                     logger.info(f"Loading {model.name} fully into memory")
-                    return -1  # Full GPU
+                    return 45  # Full GPU
                 else:
                     # Estimate layers to load based on available memory
                     # return max(0, int((total_memory * 0.9) / 0.5))  # 0.5 GB per layer

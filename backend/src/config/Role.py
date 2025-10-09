@@ -5,3 +5,5 @@ class Role(Enum):
     INSTRUCT = "INSTRUCT"
     THINKER = "THINKER"
     CODER = "CODER"
+    TOOL = "TOOL"
+    GRANITE = "GRANITE"

@@ -30,6 +30,16 @@ class ModelManager(ABC):
         system_prompt: str = None
     ):
         pass
+
+    @abstractmethod
+    def ask_model_in_chunks(
+        self,
+        model: Model,
+        messages: list[Message],
+        tools = None,
+        system_prompt: str = None
+    ):
+        pass
     
     @abstractmethod
     async def ask_model_stream(

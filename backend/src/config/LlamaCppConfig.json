@@ -71,6 +71,30 @@
             "fits_in_gpu": false,
             "inference_speed": "SLOW",
             "role": "CODER"
+        },
+        {
+            "name": "GRANITE_4.0_MICRO_Q8_0",
+            "path": "T:/Models/granite-4.0-micro-Q8_0.gguf",
+            "size": 3.53,
+            "fits_in_gpu": true,
+            "inference_speed": "FAST",
+            "role": "GRANITE"
+        },
+        {
+            "name": "GRANITE_4.0_H_MICRO_Q8_0",
+            "path": "T:/Models/granite-h-4.0-micro-Q8_0.gguf",
+            "size": 3.32,
+            "fits_in_gpu": true,
+            "inference_speed": "FAST",
+            "role": "TOOL"
+        },
+        {
+            "name": "GRANITE_4.0_TINY_Q4_K_M",
+            "path": "T:/Models/granite-4.0-h-tiny-Q4_K_M",
+            "size": 4.13,
+            "fits_in_gpu": true,
+            "inference_speed": "FAST",
+            "role": "GENERAL"
         }
     ]
 }
