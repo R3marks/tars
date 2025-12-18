@@ -37,3 +37,7 @@ android_docs_markdown_cleaned/
 chroma_db_store
 commands.txt
 image_generator.py
+
+# Personal files
+*.txt
+*.html
