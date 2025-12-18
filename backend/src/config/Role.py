@@ -7,3 +7,5 @@ class Role(Enum):
     CODER = "CODER"
     TOOL = "TOOL"
     GRANITE = "GRANITE"
+    CONTEXT = "CONTEXT"
+    ORCHESTRATOR = "ORCHESTRATOR"

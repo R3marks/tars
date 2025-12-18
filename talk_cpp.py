@@ -24,6 +24,7 @@ QWEN_PATH = "T:/Models/Qwen3-4B-Instruct-2507-UD-Q8_K_XL.gguf"
 QWEN30B_PATH = "T:/Models/Qwen3-30B-A3B-Instruct-2507-Q4_K_M.gguf"
 QWENCODER_PATH = "T:/Models/Qwen3-Coder-30B-A3B-Instruct-Q3_K_S.gguf"
 GPT_PATH = "T:/Models/gpt-oss-20b-Q4_K_M.gguf"
+JAMBA_PATH = "T:/Models/jamba-reasoning-3b-Q4_K_M.gguf"
 
 def read_file(path: str) -> str:
     """Read the contents of a file."""
@@ -93,7 +94,8 @@ def load_model(path: str) -> Llama:
             n_gpu_layers=25,
             n_batch=512,
             n_ctx=8192,
-            draft_model=LlamaPromptLookupDecoding(),
+            flash_attn=True,
+            # draft_model=LlamaPromptLookupDecoding(),
             logits_all=True
         )
         logger.info(f"Loaded model from {path} in {time.time() - start_time:.2f} seconds")
@@ -161,13 +163,14 @@ def parse_xml_tool_call(content: str) -> list[dict]:
 
 def main():
     current_llm = None
-    current_name = "qwenCoder"  # Default to Qwen3-Coder-30B for reliable JSON
+    current_name = "jamba"  # Default to Qwen3-Coder-30B for reliable JSON
     models = {
         "gemma": GEMMA_PATH,
         "qwen": QWEN_PATH,
         "qwen30b": QWEN30B_PATH,
         "qwenCoder": QWENCODER_PATH,
-        "gpt": GPT_PATH
+        "gpt": GPT_PATH,
+        "jamba": JAMBA_PATH
     }
 
     messages = []
@@ -207,6 +210,10 @@ def main():
         logger.info(f"Processing query with {current_name}")
         query_start_time = time.time()
         tokens = 0
+
+        if "jamba" in current_name.lower():
+             current_llm.reset()
+
         while True:
             response = current_llm.create_chat_completion(
                 messages=messages,

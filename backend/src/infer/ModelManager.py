@@ -27,6 +27,7 @@ class ModelManager(ABC):
         model: Model,
         messages: list[Message],
         tools = None,
+        tool_choice: str = "auto",
         system_prompt: str = None
     ):
         pass
@@ -36,8 +37,10 @@ class ModelManager(ABC):
         self,
         model: Model,
         messages: list[Message],
+        user_goal: str,
+        system_prompt: str = None,
         tools = None,
-        system_prompt: str = None
+        tool_choice: str = "auto"
     ):
         pass
     

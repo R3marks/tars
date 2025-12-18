@@ -56,7 +56,9 @@ async def agent_websocket_endpoint(websocket: WebSocket):
 
             # Load in a FAST model for acknowledgement
             if fast_models:
-                fast_model = fast_models[3] # next(iter(fast_models))
+                fast_model = fast_models[5] # next(iter(fast_models))
+
+            fast_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
 
             acknowledgement_prompt = f"""
             Simply acknowledge receipt of the below query in the same way a person might say "Huh" or "let me have a think". DO NOT EXCEED MORE THAN ONE LINE IN YOUR RESPONSE.

@@ -22,29 +22,36 @@ class LlamaCppModelManager(ModelManager):
     def __init__(
             self, 
             config: ModelConfig,  
-            max_loaded: int = 2):
+            max_loaded: int = 1):
         
         self.config = config
         self.inference_engine = LlamaCppInfer()
         # super(config, inference_engine)
 
-        self.loaded_models: Dict[str, Model] = OrderedDict()
+        self.loaded_models: OrderedDict[str, Llama] = OrderedDict()
         self.max_loaded = max_loaded
 
     def ask_model_in_chunks(
         self,
         model: Model,
         messages: list[Message],
-        tools = None,
-        system_prompt: str = None
-    ):
+        user_goal: str = None,
+        system_prompt: str = None,
+        tools: list = None,
+        tool_choice: str = "auto"
+    ) -> str:
+        
         llm = self.ready_model(model)
 
         return self.inference_engine.ask_model_in_chunks(
-            llm, 
+            model,
+            llm,
             messages,
-            tools=tools,
-            system_prompt=system_prompt)
+            user_goal,
+            system_prompt,
+            tools,
+            tool_choice,
+        )
         
 
     def ask_model(
@@ -52,15 +59,18 @@ class LlamaCppModelManager(ModelManager):
         model: Model,
         messages: list[Message],
         tools = None,
+        tool_choice: str = "auto",
         system_prompt: str = None
     ):
         llm = self.ready_model(model)
 
         return self.inference_engine.ask_model(
+            model,
             llm, 
             messages,
+            system_prompt=system_prompt,
             tools=tools,
-            system_prompt=system_prompt)
+            tool_choice=tool_choice)
 
     async def ask_model_stream(
         self,
@@ -81,13 +91,26 @@ class LlamaCppModelManager(ModelManager):
 
         # If already loaded, return it
         if model_name in self.loaded_models:
+            logger.info(f"{model_name} already loaded inside {self.loaded_models}, returning")
             # Move to end to mark as recently used
             self.loaded_models.move_to_end(model_name)
             return self.loaded_models[model_name]
+        
+        # If we're loading in Jamba, unload all other models
+        # TODO: Extract unloading logic and add config key 
+        if model_name.startswith("JAMBA"):
+            logger.info(f"Loading JMamba based model, unloading all other models {self.loaded_models} first")
+            for model_to_unload in self.loaded_models:
+                self.unload_model(model_to_unload)
+
+        if len(self.loaded_models) == 1 and next(iter(self.loaded_models)).startswith("JAMBA"):
+            logger.info(f"Mamba based model currently loaded in {self.loaded_models}, unloading before loading in {model_name}")
+            self.unload_model(next(iter(self.loaded_models)))
 
         # If we're at max capacity, remove the oldest
         if len(self.loaded_models) >= self.max_loaded:
             least_recently_used_model = next(iter(self.loaded_models))
+            logger.info(f"{self.loaded_models} at capacity! Unloading LRU model {least_recently_used_model}")
             self.unload_model(least_recently_used_model)
 
         # Load the model
@@ -102,16 +125,27 @@ class LlamaCppModelManager(ModelManager):
         # Estimate GPU layers based on VRAM
         gpu_layers = self.auto_gpu_layers(model)
         logger.error(f"Model loaded with {gpu_layers} layers")
+        llm = None
         try:
-            if model.fits_in_gpu:
+            if model.name.startswith("JAMBA"):
                 llm = Llama(
                     model_path=model.path,
                     n_gpu_layers=gpu_layers,
                     n_batch=1024,
                     n_ctx=32768,
                     verbose=False,
+                    flash_attn=True
                 )
-            else:
+            if llm is None and model.fits_in_gpu:
+                llm = Llama(
+                    model_path=model.path,
+                    n_gpu_layers=gpu_layers,
+                    n_batch=1024,
+                    n_ctx=8192,
+                    verbose=False,
+                    # flash_attn=True
+                )
+            if llm is None:
                 llm = Llama(
                     model_path=model.path,
                     n_gpu_layers=gpu_layers,
@@ -129,6 +163,7 @@ class LlamaCppModelManager(ModelManager):
 
     def unload_model(self, model_name: str):
         if model_name not in self.loaded_models:
+            logger.error(f"{model_name} not in {self.loaded_models}!")
             return
 
         logger.info(f"Unloading model {model_name}")
@@ -136,8 +171,11 @@ class LlamaCppModelManager(ModelManager):
 
         try:
             # Remove from memory
-            del self.loaded_models[model_name]
+            llm: Llama = self.loaded_models[model_name]
+            llm.close()
+            del llm
             gc.collect()
+            del self.loaded_models[model_name]
 
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
@@ -159,7 +197,7 @@ class LlamaCppModelManager(ModelManager):
                 model_size_gb = model.size
                 if model_size_gb < total_memory * 0.9:
                     logger.info(f"Loading {model.name} fully into memory")
-                    return 45  # Full GPU
+                    return 45 # -1  # Full GPU
                 else:
                     # Estimate layers to load based on available memory
                     # return max(0, int((total_memory * 0.9) / 0.5))  # 0.5 GB per layer

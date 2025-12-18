@@ -1,10 +1,11 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
 import "./ChatMessage.css";
 
-export default React.memo(({ user, reply }) => {
+export default React.memo(({ user, reply, done }) => {
   const CodeRenderer = ({ node, className = "", children, ...props }) => {
     const match = /language-(\w+)/.exec(className || "");
 
@@ -39,7 +40,9 @@ export default React.memo(({ user, reply }) => {
       <div className="message user">
         <div className="message-inner">
           <strong className="chat-label">User:</strong>
-          <ReactMarkdown components={{ code: CodeRenderer }}>
+          <ReactMarkdown 
+          components={{ code: CodeRenderer }}
+          remarkPlugins={done ? [remarkGfm] : []}>
             {user ?? ""}
           </ReactMarkdown>
         </div>
@@ -49,7 +52,9 @@ export default React.memo(({ user, reply }) => {
       <div className="message tars">
         <div className="message-inner">
           <strong className="chat-label">TARS:</strong>
-          <ReactMarkdown components={{ code: CodeRenderer }}>
+          <ReactMarkdown 
+          components={{ code: CodeRenderer }} 
+          remarkPlugins={done ? [remarkGfm] : []}>
             {reply ?? ""}
           </ReactMarkdown>
         </div>

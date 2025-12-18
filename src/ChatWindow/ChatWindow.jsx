@@ -23,7 +23,12 @@ export default function ChatWindow({ data }) {
   return (
     <div className="chat-window" ref={chatWindowRef}>
       {data.map((item, index) => (
-        <ChatMessage key={index} user={item.user} reply={item.reply} />
+        <ChatMessage
+          key={index}
+          user={item.user}
+          reply={item.reply}
+          done={item.done}
+        />
       ))}
     </div>
   );

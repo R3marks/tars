@@ -49,6 +49,14 @@
             "role": "GENERAL"
         },
         {
+            "name": "QWEN3_4B_INSTRUCT_2507_Q6_K",
+            "path": "T:/Models/Qwen3-4B-Instruct-2507-Q6_K.gguf",
+            "size": 3.2,
+            "fits_in_gpu": true,
+            "inference_speed": "FAST",
+            "role": "GENERAL"
+        },
+        {
             "name": "QWEN3_30B_A3B_INSTRUCT_2507_Q3_K_S",
             "path": "T:/Models/Qwen3-30B-A3B-Instruct-2507-Q3_K_S.gguf",
             "size": 12.98,
@@ -95,6 +103,38 @@
             "fits_in_gpu": true,
             "inference_speed": "FAST",
             "role": "GENERAL"
+        },
+        {
+            "name": "JAMBA-REASONING-3B-Q4_K_M",
+            "path": "T:/Models/jamba-reasoning-3b-Q4_K_M.gguf",
+            "size": 1.93,
+            "fits_in_gpu": true,
+            "inference_speed": "FAST",
+            "role": "CONTEXT"
+        },
+        {   
+            "name": "NVIDIA_ORCHESTRATOR-8B-IQ4_XS",
+            "path": "T:/Models/nvidia_Orchestrator-8B-IQ4_XS.gguf",
+            "size": 4.45,
+            "fits_in_gpu": true,
+            "inference_speed": "FAST",
+            "role": "ORCHESTRATOR"
+        },
+        {
+            "name": "NEMOTRON-3-NANO-30B-A3B-UD-IQ2_M",
+            "path": "T:/Models/Nemotron-3-Nano-30B-A3B-UD-IQ2_M.gguf",
+            "size": 17.7,
+            "fits_in_gpu": false,
+            "inference_speed": "MEDIUM",
+            "role": "CONTEXT"
+        },
+        {
+            "name": "RNJ-1-INSTRUCT-IQ4_XS",
+            "path": "T:/Models/rnj-1-instruct-IQ4_XS.gguf",
+            "size": 4.49,
+            "fits_in_gpu": true,
+            "inference_speed": "FAST",
+            "role": "CONTEXT"
         }
     ]
 }

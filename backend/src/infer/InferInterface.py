@@ -7,6 +7,7 @@ class InferInterface(ABC):
     @abstractmethod
     def ask_model(
         self,
+        model,
         llm,
         messages: list[Message],
         system_prompt: str = None,
@@ -18,13 +19,15 @@ class InferInterface(ABC):
     @abstractmethod
     def ask_model_in_chunks(
         self,
+        model,
         llm,
         messages: list[Message],
+        user_goal: str = None,
         system_prompt: str = None,
-        tools = None,
+        tools: list = None,
         tool_choice: str = "auto"
         ) -> str:
-        pass
+            pass
 
     @abstractmethod
     async def ask_model_stream(

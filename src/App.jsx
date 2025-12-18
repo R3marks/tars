@@ -60,6 +60,11 @@ function App() {
         }
 
         if (dataObj.type === "route_decision" || dataObj.type === "final_response") {
+          if (dataObj.message === "[DONE]") {
+            updated[updated.length - 1].done = true;
+            return updated;
+          }
+
           // Always update last message
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
@@ -93,7 +98,7 @@ function App() {
     console.log("Sending message to Tars (WS)");
 
     // Add user message instantly
-    setData((prev) => [...prev, { user: message, reply: "...\n\n" }]);
+    setData((prev) => [...prev, { user: message, reply: "...\n\n", done: false }]);
 
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       console.log("Sending message " + message)
