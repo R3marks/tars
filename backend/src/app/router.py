@@ -30,37 +30,43 @@ async def handle_query(
     logger.info(f"Router handling query")
 
     # pick a model for planner/execution (use config mapping)
-    planner_model = model_manager.config.models["NVIDIA_ORCHESTRATOR-8B-IQ4_XS"]
+    planner_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
 
     # Create a list of context objects to store
     context_store: Dict[str, str] = {}
 
     # Planner: ask for plan (planner can use tools)
     logger.info("🧭 Asking planner for an execution plan")
-    plan = await plan_with_model(query, context_store, planner_model, model_manager)
+    plan = await plan_with_model(
+        query, 
+        context_store, 
+        planner_model, 
+        model_manager)
 
-    logger.info(f"🧭 Received plan with {len(plan)} steps")
-    for i, s in enumerate(plan, start=1):
+    steps = plan["steps"]
+    logger.info(f"🧭 Received plan with {len(steps)} steps")
+
+    for i, s in enumerate(steps, start=1):
         logger.info(f"  {i}. {s.get('step')} — {s.get('tool', 'NO TOOL')} — {s.get('prompt')[:200]}")
 
-    read_write_model = model_manager.config.models["NVIDIA_ORCHESTRATOR-8B-IQ4_XS"] 
+    read_write_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"] 
 
     # 2) Execute steps sequentially (MVP supports read_files/read_write style)
     step_results: List[Dict[str, Any]] = []
-    for idx, step in enumerate(plan, start=1):
-        step_name = step.get("step", "unknown")
-        step_prompt = step.get("prompt", "")
-        tool_call = step.get("tool")
-        logger.info(f"▶️ Executing step {idx}/{len(plan)}: {step_name}")
+
+    for idx, step in enumerate(steps, start=1):
+        step_name = step["step"]
+        step_prompt = step["prompt"]
+        tool_call = step["tool"]
+
+        logger.info(f"▶️ Executing step {idx}/{len(steps)}: {step_name}")
 
         # Update step prompt to account for looping between tool calls
         step_prompt += f"""
         Here are the following results of what you executed previously {step_results}
         """
-
+        logger.error(step)
         if tool_call:
-            # route to your read_write agent
-            # read_write_model = model_manager.config.models["JAMBA-REASONING-3B-Q4_K_M"] 
             try:
                 # read_write returns aggregated summaries (string)
                 summary = await read_write(
@@ -70,73 +76,56 @@ async def handle_query(
                     read_write_model)
                 
                 context_store[f"step_{idx}_{step_name}"] = summary
-                step_results.append({"step": step_name, "ok": True, "result": summary})
+                step_results.append({
+                    "step": step_name, 
+                    "ok": True, 
+                    "tool": tool_call, 
+                    "result": summary
+                    })
                 logger.info(f"📌 Step {idx} produced summary length {len(summary)}")
             except Exception as e:
                 logger.exception(f"Step {idx} failed: {e}")
-                step_results.append({"step": step_name, "ok": False, "error": str(e)})
-        elif step_name in ("answer_query", "final_answer"):
-            # if planner included a final step, we stop execution and go to final reasoning
-            logger.info("Planner requested final answer step. Breaking to final reasoning.")
-            break
+                step_results.append({
+                    "step": step_name, 
+                    "ok": False,
+                    "tool": tool_call,
+                    "result": str(e)
+                    })
         else:
-            # Unknown step: ask the model directly for this step's prompt (don't allow it to use tools otherwise it gets confused)
-            logger.info(f"Executing ad-hoc step '{step_name}', asking model directly for the step result (tools unavailable).")
+            logger.info(f"Executing step '{step_name}' without tools")
+            step_prompt_message = [Message(
+                role="user", 
+                content=step_prompt
+                )
+            
+            ]
             try:
-                model_resp = await asyncio.to_thread(
+                step_response = await asyncio.to_thread(
                     model_manager.ask_model,
                     read_write_model,
-                    [Message(role="user", content=step_prompt)],
+                    step_prompt_message,
                     # tools=TOOLS,
                     tool_choice="auto",
                 )
-                # best-effort content extraction similar to planner_agent._extract_content_from_response
-                content = ""
-                try:
-                    if isinstance(model_resp, dict):
-                        choice = model_resp.get("choices", [{}])[0]
-                        msg = choice.get("message") or {}
-                        if isinstance(msg, dict):
-                            content = msg.get("content", "") or msg.get("text", "")
-                        else:
-                            content = str(msg)
-                    else:
-                        content = str(model_resp)
-                except Exception:
-                    content = str(model_resp)
 
-                # If model produced tool calls, execute them (sequentially)
-                tool_calls = parse_qwen4b_tool_call(content) or parse_granite_tool_call(content)
-                if not tool_calls:
-                    step_results.append({"step": step_name, "ok": True, "result": content})
-                else:
-                    # execute each tool call (sequential to keep order)
-                    outputs = []
-                    for tc in tool_calls:
-                        exec_res = await _execute_tool_call_router(tc)
-                        outputs.append(exec_res)
-                        if exec_res.get("ok") and isinstance(exec_res.get("result"), str):
-                            # append tool result to context store if it's a read
-                            outputs[-1]["snippet"] = exec_res["result"][:2000]
-                    step_results.append({"step": step_name, "ok": True, "tools": outputs})
+                step_results.append({
+                    "step": step_name, 
+                    "ok": True,
+                    "tool": "None",
+                    "result": step_response})
             except Exception as e:
                 logger.exception("Error handling unknown step.")
-                step_results.append({"step": step_name, "ok": False, "error": str(e)})
+                step_results.append({
+                    "step": step_name, 
+                    "ok": False,
+                    "tool": "None",
+                    "result": str(e)})
 
     # 3) Build aggregated context from step_results / context_store
     aggregated_parts = []
-    for r in step_results:
-        aggregated_parts.append(f"STEP: {r.get('step')}\n")
-        if r.get("ok") and "result" in r:
-            aggregated_parts.append(r["result"])
-        elif r.get("tools"):
-            for t in r["tools"]:
-                if t.get("ok") and isinstance(t.get("result"), str):
-                    aggregated_parts.append(f"\n[Tool {t['name']} output (first 4000 chars)]:\n{t['result'][:4000]}\n")
-                else:
-                    aggregated_parts.append(f"\n[Tool {t.get('name')} error]: {t.get('error')}\n")
-        else:
-            aggregated_parts.append(str(r.get("error", "No result")))
+    for step_result in step_results:
+        aggregated_parts.append(f"STEP: {step_result.get('step')}\n")
+        aggregated_parts.append(step_result["result"])
 
     # also include context_store entries
     for k, v in context_store.items():
@@ -146,61 +135,31 @@ async def handle_query(
     logger.info(f"📄 Aggregated summary length: {len(aggregated_summary)} characters")
 
     # 4) Final reasoning: stream final answer using aggregated_summary
-    final_system = "You are a helpful assistant. Use the aggregated results below to answer the user's original question."
+    #     with the following results:\n\n{aggregated_summary}
     final_user = f"""
-    You have already run the following steps:\n\n{context_store.keys()}
-
-    with the following results:\n\n{aggregated_summary}
+    You have already run the following steps:\n\n{context_store.items()}
     
     Use this information to answer the user's question:\n{query}
     """
 
     final_messages = [
-        # Message(role="system", content=final_system),
         Message(role="user", content=final_user)
     ]
 
-    logger.error(final_messages)
-
     logger.info("💬 Starting final reasoning stream...")
-    summary_model = model_manager.config.models["NVIDIA_ORCHESTRATOR-8B-IQ4_XS"]
+    summary_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
 
     async for chunk in model_manager.ask_model_stream(summary_model, final_messages):
-        await websocket.send_json({"type": "final_response", "message": chunk["content"]})
+        await websocket.send_json({
+            "type": "final_response", 
+            "message": chunk["content"]
+            })
 
-    await websocket.send_json({"type": "final_response", "message": "[DONE]"})
+    await websocket.send_json({
+        "type": "final_response", 
+        "message": "[DONE]"
+        })
+    
     conversation_history.append_message(Message(role="assistant", content="[Streamed final response]"))
 
     logger.info("Finished handle_query")
-
-
-# helper used inside this router for executing tool calls when needed
-async def _execute_tool_call_router(tool_call: Dict[str, Any], timeout: float = 15.0) -> Dict[str, Any]:
-    """
-    Mirror of the earlier helper, but local to router. Executes a single tool_call dict and returns structured result.
-    """
-    try:
-        fn_name = tool_call["function"]["name"]
-        args_json = tool_call["function"].get("arguments", "{}")
-        try:
-            args = json.loads(args_json) if isinstance(args_json, str) else args_json
-        except Exception:
-            args = {}
-
-        logger.info(f"🛠 Executing tool: {fn_name}({args})")
-
-        if fn_name not in TOOL_MAP:
-            msg = f"Unknown tool: {fn_name}"
-            logger.error(msg)
-            return {"ok": False, "name": fn_name, "error": msg}
-
-        func = TOOL_MAP[fn_name]
-        res = await asyncio.wait_for(asyncio.to_thread(func, **args), timeout=timeout)
-        return {"ok": True, "name": fn_name, "result": res}
-    except asyncio.TimeoutError:
-        err = f"Tool {tool_call} timed out"
-        logger.error(err)
-        return {"ok": False, "name": tool_call.get("function", {}).get("name", "unknown"), "error": err}
-    except Exception as e:
-        logger.exception(f"Error executing tool call: {e}")
-        return {"ok": False, "name": tool_call.get("function", {}).get("name", "unknown"), "error": str(e)}

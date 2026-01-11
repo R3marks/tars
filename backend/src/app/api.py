@@ -22,9 +22,10 @@ api_router = APIRouter()
 # Use manager to get conversation
 conversation_manager = ConversationManager()
 
-# config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/OllamaConfig.json", InferenceProvider.OLLAMA)
-
-config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/LlamaCppConfig.json", InferenceProvider.LLAMA_CPP)
+config = ModelConfig(
+    "T:/Code/Apps/Tars/backend/src/config/LlamaCppConfig.json",
+    InferenceProvider.LLAMA_CPP
+    )
 
 server = LlamaServerProcess(
     llama_server_path="T:/Code/Repos/llama.cpp/build/bin/Release/llama-server.exe",
@@ -44,65 +45,56 @@ async def agent_websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             payload = json.loads(data)
-            query = payload.get('message')
-            logger.info(f"Query received in api {query[:10]}")
+            message = payload.get('message')
+            logger.info(f"Query received in api: '{message[:100]}'")
 
-            query_message: Message = Message(
+            query: Message = Message(
                 role = "user", 
-                content = query
+                content = message
             )
 
             conversation_history = conversation_manager.get_conversation_from_id(1)
 
             # Append the query to the conversation history
-            conversation_history.append_message(query_message)
+            conversation_history.append_message(query)
 
-            # Use the first model available by default
-            fast_model = next(iter(model_manager.config.models.values()), None)
-
-            # Otherwise, attempt to load in all fast models
-            fast_models = model_manager.config.models_by_speed.get(InferenceSpeed.FAST, [])
-
-            # Load in a FAST model for acknowledgement
-            if fast_models:
-                fast_model = fast_models[5] # next(iter(fast_models))
-
-            fast_model = model_manager.config.models["NVIDIA_ORCHESTRATOR-8B-IQ4_XS"]
+            fast_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
 
             acknowledgement_prompt = f"""
-            Simply acknowledge receipt of the below query in the same way a person might say "Huh" or "let me have a think". DO NOT EXCEED MORE THAN ONE LINE IN YOUR RESPONSE.
+            You are a minimal acknowledgment assistant.  
+            Your sole task is to acknowledge receipt of the user's message — **not to answer, explain, or respond to the content**.  
 
-            QUERY:
+            You must respond with **exactly no more than one line**. Try and embody a dry humoured robot like Tars from Interstellar when responding.
+
+            ❌ Do NOT answer the question.
+
+            QUERY:  
             {query}
             """
 
-            ack_request = [Message(
+            acknowledge_request = [Message(
                 role = "user",
                 content = acknowledgement_prompt
             )]
 
-            ack_message = ""
-            async for stream in model_manager.ask_model_stream(
-                fast_model, 
-                ack_request):
-
-                ack_message += stream["content"]
+            acknowledgement_response = model_manager.ask_model(
+                fast_model,
+                acknowledge_request
+            )
 
             # Now send the full ACK in one message
             await websocket.send_json({
                 "type": "ack",
-                "message": ack_message.strip()
+                "message": acknowledgement_response.strip()
             })
 
             # TODO add this to metadata message history
-            acknowledgement_response: Message = Message(
+            acknowledgement_response_message: Message = Message(
                 role = "acknowledger",
-                content = ack_message
+                content = acknowledgement_response
             )
 
-            # conversation_history.append_message(acknowledgement_response)
-
-            # await asyncio.sleep(3)
+            conversation_history.append_message(acknowledgement_response_message)
 
             await handle_query(
                 query, 
