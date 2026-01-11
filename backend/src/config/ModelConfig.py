@@ -29,6 +29,7 @@ class ModelConfig:
             config = json.load(file)
             for model_config in config["Models"]:
                 model = Model(
+                    id = model_config["id"],
                     name = model_config["name"],
                     path = model_config["path"],
                     size = model_config["size"],

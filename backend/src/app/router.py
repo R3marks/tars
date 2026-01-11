@@ -1,4 +1,5 @@
 # src/app/router.py
+import json
 import logging
 import asyncio
 from typing import Dict, Any, List
@@ -29,7 +30,7 @@ async def handle_query(
     logger.info(f"Router handling query")
 
     # pick a model for planner/execution (use config mapping)
-    planner_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
+    planner_model = model_manager.config.models["NVIDIA_ORCHESTRATOR-8B-IQ4_XS"]
 
     # Create a list of context objects to store
     context_store: Dict[str, str] = {}
@@ -42,7 +43,7 @@ async def handle_query(
     for i, s in enumerate(plan, start=1):
         logger.info(f"  {i}. {s.get('step')} — {s.get('tool', 'NO TOOL')} — {s.get('prompt')[:200]}")
 
-    read_write_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"] 
+    read_write_model = model_manager.config.models["NVIDIA_ORCHESTRATOR-8B-IQ4_XS"] 
 
     # 2) Execute steps sequentially (MVP supports read_files/read_write style)
     step_results: List[Dict[str, Any]] = []
@@ -57,7 +58,7 @@ async def handle_query(
         Here are the following results of what you executed previously {step_results}
         """
 
-        if tool_call != "":
+        if tool_call:
             # route to your read_write agent
             # read_write_model = model_manager.config.models["JAMBA-REASONING-3B-Q4_K_M"] 
             try:
@@ -162,7 +163,9 @@ async def handle_query(
     logger.error(final_messages)
 
     logger.info("💬 Starting final reasoning stream...")
-    async for chunk in model_manager.ask_model_stream(planner_model, final_messages):
+    summary_model = model_manager.config.models["NVIDIA_ORCHESTRATOR-8B-IQ4_XS"]
+
+    async for chunk in model_manager.ask_model_stream(summary_model, final_messages):
         await websocket.send_json({"type": "final_response", "message": chunk["content"]})
 
     await websocket.send_json({"type": "final_response", "message": "[DONE]"})

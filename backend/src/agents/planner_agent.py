@@ -88,6 +88,8 @@ async def plan_with_model(
         }}
 
         If nothing needs reading and you can answer, the final step can be `answer_query` with prompt: the final instruction.
+
+        Do not recursively call `plan_steps` as the tool required for each step. Leaving the tool as empty will still give you the opportunity to answer the prompt.
     """
 
     # ask planner model (allow planner to use tools)
@@ -113,6 +115,11 @@ async def plan_with_model(
 
     # parse any tool_call occurrences
     tool_calls = _parse_tool_calls(content)
+
+    tool_calls = []
+    for r in raw_resp:
+        if r["type"] == "function":
+            tool_calls.append(r)
 
     # if planner used tool_calls and included plan_steps → validate/normalize using plan_steps tool
     plan: List[Dict[str, Any]] = []

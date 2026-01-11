@@ -5,6 +5,7 @@ from src.config.Role import Role
 
 @dataclass
 class Model():
+    id: str
     name: str
     path: str
     size: float

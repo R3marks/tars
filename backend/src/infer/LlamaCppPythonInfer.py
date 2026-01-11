@@ -13,7 +13,7 @@ from src.message_structures.conversation_manager import ConversationManager
 
 logger = logging.getLogger("uvicorn.error")
 
-class LlamaCppInfer(InferInterface):
+class LlamaCppPythonInfer(InferInterface):
 
     max_tokens_per_chunk: int = 2000
 
@@ -53,6 +53,9 @@ class LlamaCppInfer(InferInterface):
             )
             end = time.time()
             logger.info(f"⏱ Inference took {end - start:.2f}s for {context_tokens} tokens")
+
+            if "</think>" in response:
+                response = response.split("</think>")[1]
 
             return response
 

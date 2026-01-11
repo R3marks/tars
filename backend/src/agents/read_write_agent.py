@@ -51,12 +51,18 @@ async def read_write(
         )
 
         # Extract the actual message dict
-        raw_message = response["choices"][0]["message"]
+        raw_message = response # ["choices"][0]["message"]
         content = raw_message.get("content", "") if isinstance(raw_message, dict) else str(raw_message)
+        logger.error(raw_message)
         logger.error(content)
 
         # Try parsing tool calls
         tool_calls = parse_qwen4b_tool_call(content)
+
+        tool_calls = []
+        for r in response:
+            if r["type"] == "function":
+                tool_calls.append(r)
 
         if not tool_calls:
             if all(path in read_files for path in file_paths):

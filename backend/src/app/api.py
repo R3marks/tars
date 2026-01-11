@@ -4,14 +4,16 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.message_structures.conversation_manager import ConversationManager
 from src.message_structures.message import Message
-from src.infer.LlamaCppInfer import LlamaCppInfer
+from src.infer.LlamaCppPythonInfer import LlamaCppPythonInfer
 from src.infer.ModelManager import ModelManager
-from src.infer.LlamaCppModelManager import LlamaCppModelManager
+from src.infer.LlamaCppPythonModelManager import LlamaCppPythonModelManager
 from src.app.router import handle_query
 from src.infer.OllamaInfer import OllamaInfer
 from src.config.ModelConfig import ModelConfig
 from src.config.InferenceProvider import InferenceProvider
 from src.config.InferenceSpeed import InferenceSpeed
+from src.infer.LlamaServerProcess import LlamaServerProcess
+from src.infer.LlamaCppServerModelManager import LlamaCppServerModelManager
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -24,7 +26,14 @@ conversation_manager = ConversationManager()
 
 config = ModelConfig("T:/Code/Apps/Tars/backend/src/config/LlamaCppConfig.json", InferenceProvider.LLAMA_CPP)
 
-model_manager = LlamaCppModelManager(config)
+server = LlamaServerProcess(
+    llama_server_path="T:/Code/Repos/llama.cpp/build/bin/Release/llama-server.exe",
+    models_dir="T:/Models",
+    models_config="T:/Code/Apps/Tars/model-configs.ini",
+    port=8080,
+)
+
+model_manager = LlamaCppServerModelManager(config, server)
 
 # New WebSocket Endpoint
 @api_router.websocket("/ws/agent")
@@ -58,7 +67,7 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             if fast_models:
                 fast_model = fast_models[5] # next(iter(fast_models))
 
-            fast_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
+            fast_model = model_manager.config.models["NVIDIA_ORCHESTRATOR-8B-IQ4_XS"]
 
             acknowledgement_prompt = f"""
             Simply acknowledge receipt of the below query in the same way a person might say "Huh" or "let me have a think". DO NOT EXCEED MORE THAN ONE LINE IN YOUR RESPONSE.

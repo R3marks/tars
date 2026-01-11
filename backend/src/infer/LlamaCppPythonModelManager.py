@@ -11,13 +11,13 @@ from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
 from src.config.ModelConfig import ModelConfig
 from src.config.Model import Model
 from src.infer.InferInterface import InferInterface
-from src.infer.LlamaCppInfer import LlamaCppInfer
+from src.infer.LlamaCppPythonInfer import LlamaCppPythonInfer
 from src.message_structures.message import Message
 from src.infer.ModelManager import ModelManager
 
 logger = logging.getLogger("uvicorn.error")
 
-class LlamaCppModelManager(ModelManager):
+class LlamaCppPythonModelManager(ModelManager):
 
     def __init__(
             self, 
@@ -25,7 +25,7 @@ class LlamaCppModelManager(ModelManager):
             max_loaded: int = 1):
         
         self.config = config
-        self.inference_engine = LlamaCppInfer()
+        self.inference_engine = LlamaCppPythonInfer()
         # super(config, inference_engine)
 
         self.loaded_models: OrderedDict[str, Llama] = OrderedDict()

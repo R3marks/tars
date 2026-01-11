@@ -1,6 +1,7 @@
 {
     "Models": [
         {
+            "id": "gemma-3n-E4B-it-Q2_K",
             "name": "GEMMA_3N_E4B_IT_Q2_K",
             "path": "T:/Models/gemma-3n-E4B-it-Q2_K.gguf",
             "size": 3.12,
@@ -9,6 +10,7 @@
             "role": "INSTRUCT"
         },
         {
+            "id": "gemma-3n-E4B-it-Q6_K",
             "name": "GEMMA_3N_E4B_IT_Q6_K",
             "path": "T:/Models/gemma-3n-E4B-it-Q6_K.gguf",
             "size": 6.13,
@@ -17,6 +19,7 @@
             "role": "INSTRUCT"
         },
         {
+            "id": "gemma-3-12b-it-IQ4_XS",
             "name": "GEMMA_3_12B_IT_IQ4_XS",
             "path": "T:/Models/gemma-3-12b-it-IQ4_XS.gguf",
             "size": 6.40,
@@ -25,6 +28,7 @@
             "role": "INSTRUCT"
         },
         {
+            "id": "gpt-oss-20b-Q4_K_M",
             "name": "GPT_OSS_20B_Q4_K_M",
             "path": "T:/Models/gpt-oss-20b-Q4_K_M.gguf",
             "size": 11.35,
@@ -33,6 +37,7 @@
             "role": "THINKER"
         },
         {
+            "id": "Magistral-Small-2509-Q4_K_S",
             "name": "MAGISTRALL-SMALL-2509-Q4_K_S",
             "path": "T:/Models/Magistral-Small-2509-Q4_K_S.gguf",
             "size": 13.23,
@@ -41,6 +46,7 @@
             "role": "THINKER"
         },
         {
+            "id": "Qwen3-4B-Instruct-2507-UD-Q8_K_XL",
             "name": "QWEN3_4B_INSTRUCT_2507_UD_Q8_K_XL",
             "path": "T:/Models/Qwen3-4B-Instruct-2507-UD-Q8_K_XL.gguf",
             "size": 4.9,
@@ -49,6 +55,7 @@
             "role": "GENERAL"
         },
         {
+            "id": "Qwen3-4B-Instruct-2507-Q6_K",
             "name": "QWEN3_4B_INSTRUCT_2507_Q6_K",
             "path": "T:/Models/Qwen3-4B-Instruct-2507-Q6_K.gguf",
             "size": 3.2,
@@ -57,6 +64,7 @@
             "role": "GENERAL"
         },
         {
+            "id": "Qwen3-30B-A3B-Instruct-2507-Q3_K_S",
             "name": "QWEN3_30B_A3B_INSTRUCT_2507_Q3_K_S",
             "path": "T:/Models/Qwen3-30B-A3B-Instruct-2507-Q3_K_S.gguf",
             "size": 12.98,
@@ -65,6 +73,7 @@
             "role": "INSTRUCT"
         },
         {
+            "id": "pydevmini1-q8_0",
             "name": "PYDEVMINI1-Q8_0",
             "path": "T:/Models/pydevmini1-q8_0.gguf",
             "size": 4.18,
@@ -73,6 +82,7 @@
             "role": "CODER"
         },
         {
+            "id": "Qwen3-Coder-30B-A3B-Instruct-Q3_K_S",
             "name": "QWEN3_CODER_30B_A3B_INSTRUCT_Q3_K_S",
             "path": "T:/Models/Qwen3-Coder-30B-A3B-Instruct-Q3_K_S.gguf",
             "size": 12.98,
@@ -81,6 +91,7 @@
             "role": "CODER"
         },
         {
+            "id": "granite-4.0-micro-Q8_0",
             "name": "GRANITE_4.0_MICRO_Q8_0",
             "path": "T:/Models/granite-4.0-micro-Q8_0.gguf",
             "size": 3.53,
@@ -89,6 +100,7 @@
             "role": "GRANITE"
         },
         {
+            "id": "granite-4.0-h-micro-Q8_0",
             "name": "GRANITE_4.0_H_MICRO_Q8_0",
             "path": "T:/Models/granite-h-4.0-micro-Q8_0.gguf",
             "size": 3.32,
@@ -97,6 +109,7 @@
             "role": "TOOL"
         },
         {
+            "id": "granite-4.0-h-tiny-Q4_K_M",
             "name": "GRANITE_4.0_TINY_Q4_K_M",
             "path": "T:/Models/granite-4.0-h-tiny-Q4_K_M",
             "size": 4.13,
@@ -105,6 +118,7 @@
             "role": "GENERAL"
         },
         {
+            "id": "jamba-reasoning-3b-Q4_K_M",
             "name": "JAMBA-REASONING-3B-Q4_K_M",
             "path": "T:/Models/jamba-reasoning-3b-Q4_K_M.gguf",
             "size": 1.93,
@@ -113,6 +127,7 @@
             "role": "CONTEXT"
         },
         {   
+            "id": "nvidia_Orchestrator-8B-IQ4_XS",
             "name": "NVIDIA_ORCHESTRATOR-8B-IQ4_XS",
             "path": "T:/Models/nvidia_Orchestrator-8B-IQ4_XS.gguf",
             "size": 4.45,
@@ -121,6 +136,7 @@
             "role": "ORCHESTRATOR"
         },
         {
+            "id": "Nemotron-3-Nano-30B-A3B-UD-IQ2_M",
             "name": "NEMOTRON-3-NANO-30B-A3B-UD-IQ2_M",
             "path": "T:/Models/Nemotron-3-Nano-30B-A3B-UD-IQ2_M.gguf",
             "size": 17.7,
@@ -129,6 +145,7 @@
             "role": "CONTEXT"
         },
         {
+            "id": "rnj-1-instruct-IQ4_XS",
             "name": "RNJ-1-INSTRUCT-IQ4_XS",
             "path": "T:/Models/rnj-1-instruct-IQ4_XS.gguf",
             "size": 4.49,
