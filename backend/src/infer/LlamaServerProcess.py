@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 import requests
@@ -59,12 +60,15 @@ class LlamaServerProcess:
         if not self.proc:
             return
 
-        logger.info("🛑 Shutting down llama-server")
+        logger.info(f"🛑 Shutting down llama-server on PID: {self.proc.pid}")
+
         try:
             subprocess.run(
                 ["taskkill", "/PID", str(self.proc.pid), "/T", "/F"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+        except Exception as e:
+            logger.error(f"Failed to shut down llama server: {e}")
         finally:
             self.proc = None

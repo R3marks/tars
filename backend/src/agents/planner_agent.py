@@ -1,127 +1,90 @@
 # src/agents/planner_agent.py
 import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
+from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
 from src.message_structures.message import Message
-from src.agents.agent_utils import TOOLS, TOOL_MAP
-from src.tool_parsers.qwen3_4b_instruct_2507 import parse_qwen4b_tool_call
-from src.tool_parsers.granite_4 import parse_granite_tool_call
+from src.agents.agent_utils import PLANNER_TOOLS, TOOL_MAP
 
 logger = logging.getLogger("uvicorn.error")
 
 
-def _parse_tool_calls(content: str) -> List[Dict[str, Any]]:
-    """Try both parsers and return any parsed tool_call list (normalized)."""
-    if not content or not isinstance(content, str):
-        return []
-    # try qwen parser first
-    parsed = parse_qwen4b_tool_call(content)
-    if parsed:
-        logger.debug("Planner: parsed tool calls with qwen parser")
-        return parsed
-    parsed = parse_granite_tool_call(content)
-    if parsed:
-        logger.debug("Planner: parsed tool calls with granite parser")
-        return parsed
-    return []
-
-
-async def plan_with_model(
+async def plan_for_outcome(
     query: str,
-    context_store: Dict[str, str],
-    model,
-    model_manager: ModelManager,
-    max_steps: int = 10
+    expected_outcome_index: int,
+    expected_outcome: str,
+    expected_outcomes: List[str],
+    prior_attempts: List[Dict[str, Any]],
+    context: str,
+    model: Model,
+    model_manager: ModelManager
 ) -> List[Dict[str, Any]]:
+    
+    prompt = f"""
+    Given your position within a tree of agents, visualised like so:
+    ---
+    Layer 1: Expected Outcomes Agent generates `expected_outcomes`
+    for `expected_outcome` in expected_outcomes`:
+
+        Layer 2: Planning Agent (you) generates `steps` for execution
+        for `step` in `steps`:
+            
+            Layer 3: Execution Agent executes each given `step`
+
+       Layer 2: Decision Agent decides whether `expected_outcome` has been satisfied
+    ---
+
+    The Expected Outcomes Agent has defined the following `expected_outcomes`:
+    ---
+    {expected_outcomes}
+    ---
+
+    To satisfy the user's query:
+    ---
+    {query}
+    ---
+
+    Given the current context:
+    ---
+    {context}
+    ---
+
+    Your task is to create a plan for the following outcome ONLY: {expected_outcome_index} - {expected_outcome}
+
+    Make sure to only plan the minimum amount of necessary steps.
+
+    Rules:
+    - If information already exists within this prompt reuse it.
+    - Avoid redundant steps.
+    - Create steps only if new information is required.
+    - If the outcome is already satisfied return no steps.
+    - Executor agents have access to the following tools: [`read_file`, `write_file`]. Clearly instruct the executor agents when to use tools and when to respond without tool calls by **explicitly telling them not to use tools within the prompt**
+
+    Return steps using plan_steps.
     """
-    Ask the planner-capable model to produce an ordered plan.
-    - The model may emit a plan_steps tool call; we accept that and use agent_utils.plan_steps to canonicalize.
-    - Returns a list of step dicts: 
-    [
-        {
-            "step": "...", 
-            "prompt": "...", 
-            "tool": "optional"
-        }
-    ]
-    """
-    # short context snippet for planner (don't dump everything)
-    context_snippet = "\n".join(f"{k}: {v[:1000]}" for k, v in context_store.items()) or "(none)"
 
-    planner_prompt = f"""
-        You are a planner assistant. Given the user's request and current context, produce a clear, concise sequence of ordered steps to achieve the goal. Each step should include `step` (name), `prompt` (what to do), and optionally `tool` if needed.
+    response = model_manager.ask_model(
+        model,
+        [Message(role="user", content=prompt)],
+        tools=PLANNER_TOOLS,
+        tool_choice="required",
+    )
 
-        User query:
-        {query}
+    for call in response:
+        if call.get("type") != "function":
+            continue
 
-        Current context:
-        {context_snippet}
+        function = call["function"]
+        if function["name"] != "plan_steps":
+            continue
 
-        Return a plan as a tool call to `plan_steps` with the `steps` argument containing the list. Example:
+        normalized = TOOL_MAP["plan_steps"](function["arguments"])
+        parsed = json.loads(normalized)
 
-        {{
-            'steps': [
-                {{'step': 'Read Job Description', 
-                'prompt': 'Read T:/Code/Apps/Tars/job_description.txt and extract the key requirements, such as required skills, experience, education, and any specific qualifications mentioned in the job description.',
-                'tool': 'read_file'
-                }}
-            ]
-        }}
+        steps = parsed.get("steps", [])
+        return steps
 
-        Do not recursively call `plan_steps` as the tool required for each step. Leaving the tool as empty will still give you the opportunity to answer the prompt.
-    """
-
-    # ask planner model (allow planner to use tools)
-    try:
-        plan_response = model_manager.ask_model(
-            model,
-            [Message(role="user", content=planner_prompt)],
-            tools=TOOLS,
-            tool_choice="auto",
-        )
-    except Exception as e:
-        logger.exception(f"Planner failure calling model: {e}")
-
-        return [{"step": "answer_query", "prompt": query}]
-
-    tool_calls = []
-    for plan in plan_response:
-        if "type" in plan.keys() and plan["type"] == "function":
-            tool_calls.append(plan)
-
-    unknown_plan = [
-            {
-                "step": "unknown", 
-                "prompt": query,
-                "tool": None
-            }
-        ]
-
-    if len(tool_calls) == 0:
-        logger.error(f"No tool calls from planner, response: {plan_response}")
-        return unknown_plan
-
-    # if planner used tool_calls and included plan_steps → validate/normalize using plan_steps tool
-    plan: List[Dict[str, Any]] = []
-
-    for tool_call in tool_calls:
-        function = tool_call["function"]
-        function_name = function["name"]
-        function_arguments = function["arguments"]
-
-        if function_name != "plan_steps":
-            logger.error(f"Planner didn't execute plan_steps, response: {plan_response}")
-            return unknown_plan
-
-        # call the plan_steps handler to normalize or validate
-        try:
-            plan_steps_function = TOOL_MAP.get(function_name)
-            handle_plan_response = plan_steps_function(function_arguments)
-            # normalized is a JSON string like {"steps":[...]} or an error object
-            plan_response_json = json.loads(handle_plan_response)
-            return plan_response_json
-        except Exception as e:
-            logger.exception("Failed to normalize plan_steps output")
-            return unknown_plan
+    logger.error("❌ Planner failed to return steps")
+    return []

@@ -1,5 +1,4 @@
 import json
-import time
 import requests
 import logging
 from typing import List
@@ -35,6 +34,7 @@ class LlamaCppServerInfer(InferInterface):
             messages,
             tools,
             system_prompt,
+            tool_choice=tool_choice,
         )
 
         r = requests.post(
@@ -42,7 +42,8 @@ class LlamaCppServerInfer(InferInterface):
             json=payload,
             timeout=300,
         )
-        r.raise_for_status()
+
+        self._raise_for_status_with_context(r, payload)
 
         data = r.json()
         choice = data["choices"][0]
@@ -79,7 +80,7 @@ class LlamaCppServerInfer(InferInterface):
             stream=True,
             timeout=300,
         ) as r:
-            r.raise_for_status()
+            self._raise_for_status_with_context(r, payload)
 
             for raw in r.iter_lines(decode_unicode=False):
                 if not raw:
@@ -209,6 +210,7 @@ class LlamaCppServerInfer(InferInterface):
         messages: list[Message],
         tools,
         system_prompt: str = None,
+        tool_choice: str = "auto",
         stream: bool = False,
     ):
         msgs = []
@@ -218,12 +220,46 @@ class LlamaCppServerInfer(InferInterface):
 
         msgs.extend(m.model_dump() for m in messages)
 
-        return {
+        payload = {
             "model": model,
             "messages": msgs,
-            "tools": tools,
             "temperature": 0.3,
-            # "max_tokens": 1024,
-            "response_format": "json_object",
             "stream": stream,
         }
+
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = tool_choice
+
+        return payload
+
+    def _raise_for_status_with_context(self, response, payload):
+        if response.ok:
+            return
+
+        response_text = response.text.strip()
+        payload_summary = {
+            "model": payload.get("model"),
+            "stream": payload.get("stream", False),
+            "has_tools": "tools" in payload,
+            "tool_choice": payload.get("tool_choice"),
+            "message_count": len(payload.get("messages", [])),
+            "last_message_preview": self._last_message_preview(payload),
+        }
+
+        logger.error("llama-server request failed: %s", payload_summary)
+        logger.error("llama-server response body: %s", response_text[:2000])
+        response.raise_for_status()
+
+    def _last_message_preview(self, payload) -> str:
+        messages = payload.get("messages", [])
+        if not messages:
+            return ""
+
+        last_message = messages[-1]
+        content = last_message.get("content", "")
+
+        if not isinstance(content, str):
+            return ""
+
+        return content[:200]

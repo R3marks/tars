@@ -1,165 +1,222 @@
 # src/app/router.py
-import json
 import logging
-import asyncio
-from typing import Dict, Any, List
+import pprint
+from typing import List, Dict, Any
 
 from fastapi import WebSocket
 
 from src.infer.ModelManager import ModelManager
 from src.message_structures.message import Message
-from src.message_structures.conversation import Conversation
-from src.config.Role import Role
-
-from src.agents.planner_agent import plan_with_model
-from src.agents.read_write_agent import read_write  # your agent that returns summaries
-from src.agents.agent_utils import TOOLS, TOOL_MAP
-
-from src.tool_parsers.qwen3_4b_instruct_2507 import parse_qwen4b_tool_call
-from src.tool_parsers.granite_4 import parse_granite_tool_call
+from src.agents.criteria_agent import extract_expected_outcomes
+from src.agents.planner_agent import plan_for_outcome
+from src.agents.executor_agent import execute_step
 
 logger = logging.getLogger("uvicorn.error")
 
 
+MAX_PROMPT_RESULT_CHARS = 1200
+
+
+def compact_value_for_prompt(value, max_chars: int = MAX_PROMPT_RESULT_CHARS):
+    if isinstance(value, str):
+        stripped_value = value.strip()
+        if len(stripped_value) <= max_chars:
+            return stripped_value
+
+        preview = stripped_value[:max_chars].rstrip()
+        omitted_characters = len(stripped_value) - len(preview)
+        return (
+            f"{preview}\n"
+            f"[truncated for prompt size: omitted {omitted_characters} characters]"
+        )
+
+    if isinstance(value, list):
+        return [compact_value_for_prompt(item, max_chars) for item in value]
+
+    if isinstance(value, dict):
+        compacted_dict = {}
+
+        for key, item in value.items():
+            compacted_dict[key] = compact_value_for_prompt(item, max_chars)
+
+        return compacted_dict
+
+    return value
+
+
 async def handle_query(
-        query: str,
-        websocket: WebSocket,
-        conversation_history: Conversation,
-        model_manager: ModelManager):
+    query: str,
+    websocket: WebSocket,
+    conversation_history,
+    model_manager: ModelManager
+):
+    model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
 
-    logger.info(f"Router handling query")
+    logger.info(f"📥 Query: {query}")
 
-    # pick a model for planner/execution (use config mapping)
-    planner_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
+    # -----------------------------
+    # Shared execution context
+    # -----------------------------
+    context: List[Dict[str, Any]] = []
 
-    # Create a list of context objects to store
-    context_store: Dict[str, str] = {}
+    # -----------------------------
+    # Criteria extraction
+    # -----------------------------
+    expected_outcomes = await extract_expected_outcomes(
+        query,
+        model,
+        model_manager
+    )
 
-    # Planner: ask for plan (planner can use tools)
-    logger.info("🧭 Asking planner for an execution plan")
-    plan = await plan_with_model(
-        query, 
-        context_store, 
-        planner_model, 
-        model_manager)
+    logger.info(f"☑️   {len(expected_outcomes)} expected outcomes generated!")
 
-    steps = plan["steps"]
-    logger.info(f"🧭 Received plan with {len(steps)} steps")
+    for expected_outcome_index, expected_outcome in enumerate(expected_outcomes, 1):
+        logger.info(f"🎯 Outcome {expected_outcome_index}: {expected_outcome}")
 
-    for i, s in enumerate(steps, start=1):
-        logger.info(f"  {i}. {s.get('step')} — {s.get('tool', 'NO TOOL')} — {s.get('prompt')[:200]}")
+        await websocket.send_json({
+            "type": "status",
+            "message": f"Working on: {expected_outcome}"
+        })
 
-    read_write_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"] 
+        attempts = []
+        satisfied = False
 
-    # 2) Execute steps sequentially (MVP supports read_files/read_write style)
-    step_results: List[Dict[str, Any]] = []
+        while not satisfied and len(attempts) < 2:
+            steps = await plan_for_outcome(
+                query=query,
+                expected_outcome_index=expected_outcome_index,
+                expected_outcome=expected_outcome,
+                expected_outcomes=expected_outcomes,
+                prior_attempts=attempts,
+                context=context,
+                model=model,
+                model_manager=model_manager
+            )
 
-    for idx, step in enumerate(steps, start=1):
-        step_name = step["step"]
-        step_prompt = step["prompt"]
-        tool_call = step["tool"]
+            logger.info(f"🧠 Planner has created {len(steps)} steps")
 
-        logger.info(f"▶️ Executing step {idx}/{len(steps)}: {step_name}")
+            if not steps:
+                logger.info(f"{expected_outcome_index}. No new steps required — outcome can be derived from context")
+                break
 
-        # Update step prompt to account for looping between tool calls
-        step_prompt += f"""
-        Here are the following results of what you executed previously {step_results}
-        """
-        logger.error(step)
-        if tool_call:
-            try:
-                # read_write returns aggregated summaries (string)
-                summary = await read_write(
-                    step_prompt, 
-                    model_manager, 
-                    planner_model,
-                    read_write_model)
+            execution_results = []
+
+            for step_index, step in enumerate(steps, 1):
+                logger.info(f"▶ Step {step_index}: {step['step']}")
+
+                result = await execute_step(
+                    step_index=step_index,
+                    step=step,
+                    steps=steps,
+                    context=context,
+                    execution_results=execution_results,
+                    model=model,
+                    model_manager=model_manager
+                )
+
+                execution_results.append({
+                    "step": step["step"],
+                    "result": result
+                })
+
+            check_prompt = f"""
+            Expected outcome:
+            "{expected_outcome}"
+
+            Evidence:
+            {compact_value_for_prompt(execution_results)}
+
+            Answer yes or no only.
+            """
+
+            check = model_manager.ask_model(
+                model,
+                [Message(role="user", content=check_prompt)]
+            ).lower()
+
+            logger.info(f"✅ Outcome satisfied? {check}")
+
+            if "no" in check:
+                attempts.append({
+                    "steps": steps,
+                    "evidence": execution_results
+                })
                 
-                context_store[f"step_{idx}_{step_name}"] = summary
-                step_results.append({
-                    "step": step_name, 
-                    "ok": True, 
-                    "tool": tool_call, 
-                    "result": summary
-                    })
-                logger.info(f"📌 Step {idx} produced summary length {len(summary)}")
-            except Exception as e:
-                logger.exception(f"Step {idx} failed: {e}")
-                step_results.append({
-                    "step": step_name, 
-                    "ok": False,
-                    "tool": tool_call,
-                    "result": str(e)
-                    })
-        else:
-            logger.info(f"Executing step '{step_name}' without tools")
-            step_prompt_message = [Message(
-                role="user", 
-                content=step_prompt
-                )
+                continue
+
+            satisfied = True
             
-            ]
-            try:
-                step_response = await asyncio.to_thread(
-                    model_manager.ask_model,
-                    read_write_model,
-                    step_prompt_message,
-                    # tools=TOOLS,
-                    tool_choice="auto",
-                )
+            logger.info(f"Compacting context with latest results...")
+            condense_context_prompt = f"""
+            The user's query:
+            ---
+            {query}
+            ---
 
-                step_results.append({
-                    "step": step_name, 
-                    "ok": True,
-                    "tool": "None",
-                    "result": step_response})
-            except Exception as e:
-                logger.exception("Error handling unknown step.")
-                step_results.append({
-                    "step": step_name, 
-                    "ok": False,
-                    "tool": "None",
-                    "result": str(e)})
+            Has been broken down into a set of expected outcomes:
+            ---
+            {expected_outcomes}
+            ---
 
-    # 3) Build aggregated context from step_results / context_store
-    aggregated_parts = []
-    for step_result in step_results:
-        aggregated_parts.append(f"STEP: {step_result.get('step')}\n")
-        aggregated_parts.append(step_result["result"])
+            You have successfully executed the following steps to satisfy outcome {expected_outcome_index} - {expected_outcome}:
+            ---
+            {compact_value_for_prompt(execution_results)}
+            ---
 
-    # also include context_store entries
-    for k, v in context_store.items():
-        aggregated_parts.append(f"\nCONTEXT {k}:\n{v}\n")
+            Given the current context:
+            ---
+            {context}
+            ---
 
-    aggregated_summary = "\n\n---\n\n".join(aggregated_parts)
-    logger.info(f"📄 Aggregated summary length: {len(aggregated_summary)} characters")
+            Summarise only your most latest outcomes. Make sure to keep the context accurate and concise.
+            """
+            expected_outcome_summary = model_manager.ask_model(
+                model,
+                [Message(role="user", content=condense_context_prompt)]
+            )
+            context.append({
+                "expected_outcome": expected_outcome,
+                "satisfied": check,
+                "summary": expected_outcome_summary
+            })
 
-    # 4) Final reasoning: stream final answer using aggregated_summary
-    #     with the following results:\n\n{aggregated_summary}
-    final_user = f"""
-    You have already run the following steps:\n\n{context_store.items()}
+        if not satisfied:
+            await websocket.send_json({
+                "type": "partial_result",
+                "message": f"⚠ Could not fully satisfy: {expected_outcome}"
+            })
+    try:
+        with open(r'T:\Code\Apps\Tars\context.txt', 'w') as file:
+            logger.info("Printing context...")
+            output_s = pprint.pformat(context)
+            file.write(output_s)
+    except Exception as e:
+        logger.error(e)
     
-    Use this information to answer the user's question:\n{query}
+
+    summarise_step_prompt = f"""
+    Given the user's query:
+    "{query}"
+
+    And all the evidence collected:
+    "{context}"
+
+    That satisfied the following expected outcomes:
+    "{expected_outcomes}"
+    
+    Provide an appropriate response. Try and embody a dry humoured robot like Tars from Interstellar when responding.
     """
 
-    final_messages = [
-        Message(role="user", content=final_user)
-    ]
+    async for chunk in model_manager.ask_model_stream(
+        model, 
+        [Message(role="user", content=summarise_step_prompt)]):
 
-    logger.info("💬 Starting final reasoning stream...")
-    summary_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
-
-    async for chunk in model_manager.ask_model_stream(summary_model, final_messages):
         await websocket.send_json({
             "type": "final_response", 
             "message": chunk["content"]
             })
-
+        
     await websocket.send_json({
-        "type": "final_response", 
+        "type": "final",
         "message": "[DONE]"
-        })
-    
-    conversation_history.append_message(Message(role="assistant", content="[Streamed final response]"))
-
-    logger.info("Finished handle_query")
+    })

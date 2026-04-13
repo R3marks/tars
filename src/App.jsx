@@ -17,7 +17,7 @@ function App() {
       let prefix = "";
       let suffix = "";
       let newLine = "\n\n";  // Always add newline for now
-
+      console.log(type)
       switch (type) {
         case "ack":
           prefix = "[ACK] ";
@@ -26,6 +26,14 @@ function App() {
         case "route_decision":
           prefix = "[ROUTER] ";
           suffix = " [/ROUTER]"
+          break;
+        case "status":
+          prefix = "[STATUS] ";
+          suffix = " [/STATUS]"
+          break; 
+        case "partial_result":
+          prefix = "[PARTIAL RESULT] ";
+          suffix = " [/PARTIAL RESULT]"
           break;
         case "final_response":
           prefix = "";
@@ -55,11 +63,27 @@ function App() {
 
         const formattedChunk = formatMessageChunk(dataObj.type, dataObj.message);
 
-        if (dataObj.type === "ack") {
+        if (
+          dataObj.type === "ack"
+        ) {
           updated[updated.length - 1].reply = formattedChunk;
         }
 
-        if (dataObj.type === "route_decision" || dataObj.type === "final_response") {
+        if (
+          dataObj.type === "status"
+          || dataObj.type === "result"
+        ) {
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            reply: updated[updated.length - 1].reply + formattedChunk
+          };
+        }
+
+        if (
+          dataObj.type === "route_decision"
+          || dataObj.type === "final"
+          || dataObj.type === "final_response"
+        ) {
           if (dataObj.message === "[DONE]") {
             updated[updated.length - 1].done = true;
             return updated;
