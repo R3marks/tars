@@ -5,10 +5,9 @@ from fastapi import WebSocket
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
 from src.message_structures.message import Message
-from src.orchestration.generic_agent_flow import handle_generic_query
 from src.orchestration.model_roles import ModelRoleSelector
 from src.orchestration.request_router import route_request
-from src.workflows.job_application.workflow import run_job_application_workflow
+from src.orchestration.task_orchestrator import handle_task_query
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -51,29 +50,10 @@ async def handle_query(
         })
         return
 
-    if route_decision.mode == "job_application_workflow":
-        workflow_result = await run_job_application_workflow(
-            query=query,
-            websocket=websocket,
-            conversation_history=conversation_history,
-            model_manager=model_manager,
-            orchestration_models=orchestration_models,
-        )
-
-        await websocket.send_json({
-            "type": "final_response",
-            "message": workflow_result.final_response,
-        })
-        await websocket.send_json({
-            "type": "final",
-            "message": "[DONE]",
-        })
-        return
-
-    await handle_generic_query(
+    await handle_task_query(
         query=query,
         websocket=websocket,
         conversation_history=conversation_history,
-        model=orchestration_models.worker_model,
         model_manager=model_manager,
+        orchestration_models=orchestration_models,
     )

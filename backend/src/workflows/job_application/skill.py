@@ -1,8 +1,8 @@
-from src.workflows.job_application.models import SkillPackage
+from src.workflows.job_application.models import SkillPackageConfig
 
 
-def get_job_application_skill_package() -> SkillPackage:
-    return SkillPackage(
+def get_job_application_skill_package() -> SkillPackageConfig:
+    return SkillPackageConfig(
         name="job_application",
         editable_experience_section_limit=2,
         max_review_iterations=2,
@@ -11,7 +11,7 @@ def get_job_application_skill_package() -> SkillPackage:
 
 def build_job_requirements_prompt(query: str, job_description_text: str) -> str:
     return f"""
-    Extract only the job requirements that matter for tailoring a one-page CV.
+    Extract only the job requirements that matter for tailoring application materials.
 
     User request:
     ---
@@ -37,7 +37,7 @@ def build_candidate_evidence_prompt(
     template_section_summaries: list[str],
 ) -> str:
     return f"""
-    Extract truthful candidate evidence for tailoring a CV.
+    Extract truthful candidate evidence for job application materials.
 
     User request:
     ---
@@ -176,6 +176,96 @@ def build_experience_rewrite_prompt(
     - Keep the strongest quantified or commercially meaningful facts.
     - Do not move facts from another role into this section.
     - Do not overclaim.
+    """
+
+
+def build_cover_letter_prompt(
+    query: str,
+    job_requirements_text: str,
+    candidate_evidence_text: str,
+    motivation_text: str,
+    research_text: str,
+    cover_letter_template_text: str,
+    output_mode: str,
+    company_name: str,
+    company_address: str,
+) -> str:
+    return f"""
+    Draft a cover letter for a job application.
+
+    User request:
+    ---
+    {query}
+    ---
+
+    Job requirements:
+    - {job_requirements_text}
+
+    Candidate evidence:
+    - {candidate_evidence_text}
+
+    Motivation context:
+    - {motivation_text}
+
+    Company and application context:
+    - {research_text}
+
+    Optional cover letter template:
+    ---
+    {cover_letter_template_text}
+    ---
+
+    Constraints:
+    - Output mode: {output_mode}
+    - Company name: {company_name}
+    - Company address: {company_address}
+
+    Rules:
+    - Keep the letter truthful and concise.
+    - Use motivation context only when it is supported by the user-provided file.
+    - If motivation context is thin, keep the draft usable but clearly generic enough for review.
+    - Do not invent company details or addresses.
+    - Emphasize the strongest overlap between the role and the user's real experience.
+    """
+
+
+def build_application_answers_prompt(
+    query: str,
+    job_requirements_text: str,
+    candidate_evidence_text: str,
+    motivation_text: str,
+    research_text: str,
+    questions: list[str],
+) -> str:
+    return f"""
+    Answer bespoke application questions for a job application.
+
+    User request:
+    ---
+    {query}
+    ---
+
+    Job requirements:
+    - {job_requirements_text}
+
+    Candidate evidence:
+    - {candidate_evidence_text}
+
+    Motivation context:
+    - {motivation_text}
+
+    Company and application context:
+    - {research_text}
+
+    Questions:
+    - {questions}
+
+    Rules:
+    - Keep each answer truthful, concise, and tailored to the question.
+    - Use motivation context only when supported by the user's file.
+    - Use company context to answer "why this company" style questions.
+    - If evidence is thin, answer conservatively and flag it for review.
+    - Do not invent personal stories, metrics, or company facts.
     """
 
 

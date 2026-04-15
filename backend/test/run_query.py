@@ -36,6 +36,12 @@ class RecordingWebSocket:
         for unchanged_item in payload.get("unchanged", []):
             print(f"  kept:    {unchanged_item}")
 
+        for blocked_item in payload.get("blocked", []):
+            print(f"  blocked: {blocked_item}")
+
+        for review_item in payload.get("needs_review", []):
+            print(f"  review:  {review_item}")
+
         if payload.get("output_path"):
             print(f"  html:    {payload['output_path']}")
 
@@ -46,6 +52,9 @@ class RecordingWebSocket:
                 page_suffix = f" ({page_count} pages)"
 
             print(f"  pdf:     {payload['pdf_output_path']}{page_suffix}")
+
+        for output_path in payload.get("output_paths", []):
+            print(f"  output:  {output_path}")
 
 
 def parse_args() -> argparse.Namespace:

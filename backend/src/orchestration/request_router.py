@@ -22,8 +22,7 @@ ROUTE_TOOLS = [
                         "type": "string",
                         "enum": [
                             "direct_response",
-                            "generic_agent",
-                            "job_application_workflow",
+                            "task_orchestrator",
                         ],
                     },
                     "response": {
@@ -59,13 +58,12 @@ def route_request(
 
     Choose exactly one mode:
     - direct_response: use this only when the request is a simple greeting or very small conversational reply that can be answered immediately with no file reads, no planning, and no workflow.
-    - job_application_workflow: use this only for CV or resume tailoring requests that reference a job description, experience, template, or saving a generated CV.
-    - generic_agent: use this for everything else.
+    - task_orchestrator: use this for all non-trivial tasks that should be delegated to registered task agents.
 
     Rules:
     - Prefer direct_response for simple messages like "hi", "hello", or short casual replies.
     - Do not choose direct_response if the user asks to read local files, save files, analyse documents, or generate structured outputs.
-    - Only choose job_application_workflow for CV or resume generation and tailoring requests.
+    - Choose task_orchestrator for everything that is not a tiny direct response.
     - If you choose direct_response, include a short final response in the response field.
     - If you do not choose direct_response, leave response empty.
 
@@ -101,9 +99,9 @@ def route_request(
         )
 
     logger.warning(
-        "Router did not return a valid route decision, falling back to generic_agent",
+        "Router did not return a valid route decision, falling back to task_orchestrator",
     )
     return RouteDecision(
-        mode="generic_agent",
+        mode="task_orchestrator",
         reason="Fallback route because no structured route decision was returned.",
     )

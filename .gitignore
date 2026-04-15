@@ -42,3 +42,6 @@ image_generator.py
 *.txt
 *.html
 backend/docs/
+backend/config/
+generated_application_answers.md
+generated/
