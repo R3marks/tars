@@ -21,13 +21,10 @@ ROUTE_TOOLS = [
                     "mode": {
                         "type": "string",
                         "enum": [
-                            "direct_response",
+                            "direct_chat",
+                            "fact_check",
                             "task_orchestrator",
                         ],
-                    },
-                    "response": {
-                        "type": "string",
-                        "description": "Only fill this when mode is direct_response.",
                     },
                     "reason": {
                         "type": "string",
@@ -45,7 +42,6 @@ ROUTE_TOOLS = [
 class RouteDecision:
     mode: str
     reason: str
-    response: str = ""
 
 
 def route_request(
@@ -57,15 +53,15 @@ def route_request(
     You are deciding how a local AI backend should handle a user request.
 
     Choose exactly one mode:
-    - direct_response: use this only when the request is a simple greeting or very small conversational reply that can be answered immediately with no file reads, no planning, and no workflow.
+    - direct_chat: use this for greetings, short conversational replies, and small follow-up messages that should be answered from the recent conversation only.
+    - fact_check: use this for factual questions where freshness matters or might matter, especially anything involving current roles, recent events, "today", "current", "latest", or facts that can be verified quickly with a web search.
     - task_orchestrator: use this for all non-trivial tasks that should be delegated to registered task agents.
 
     Rules:
-    - Prefer direct_response for simple messages like "hi", "hello", or short casual replies.
-    - Do not choose direct_response if the user asks to read local files, save files, analyse documents, or generate structured outputs.
-    - Choose task_orchestrator for everything that is not a tiny direct response.
-    - If you choose direct_response, include a short final response in the response field.
-    - If you do not choose direct_response, leave response empty.
+    - Prefer direct_chat for simple messages like "hi", "hello", "thanks", or short conversational follow-ups like "did you see my last question?".
+    - Do not choose direct_chat if the user asks to read local files, save files, analyse documents, generate structured outputs, or research a topic.
+    - Choose fact_check for short factual questions that need current or externally verified information.
+    - Choose task_orchestrator for everything that is not a tiny conversational reply or a small factual verification request.
 
     User request:
     ---
@@ -95,7 +91,6 @@ def route_request(
         return RouteDecision(
             mode=arguments["mode"],
             reason=arguments["reason"],
-            response=arguments.get("response", "").strip(),
         )
 
     logger.warning(
