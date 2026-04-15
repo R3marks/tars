@@ -1,19 +1,15 @@
 import json
-import asyncio
 import logging
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from src.message_structures.conversation_manager import ConversationManager
-from src.message_structures.message import Message
-from src.infer.LlamaCppPythonInfer import LlamaCppPythonInfer
-from src.infer.ModelManager import ModelManager
-from src.infer.LlamaCppPythonModelManager import LlamaCppPythonModelManager
+
 from src.app.router import handle_query
-from src.infer.OllamaInfer import OllamaInfer
 from src.config.ModelConfig import ModelConfig
 from src.config.InferenceProvider import InferenceProvider
-from src.config.InferenceSpeed import InferenceSpeed
-from src.infer.LlamaServerProcess import LlamaServerProcess
 from src.infer.LlamaCppServerModelManager import LlamaCppServerModelManager
+from src.infer.LlamaServerProcess import LlamaServerProcess
+from src.message_structures.conversation_manager import ConversationManager
+from src.message_structures.message import Message
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -69,7 +65,7 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             ❌ Do NOT answer the question.
 
             QUERY:  
-            {query}
+            {message}
             """
 
             acknowledge_request = [Message(
@@ -97,7 +93,7 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             conversation_history.append_message(acknowledgement_response_message)
 
             await handle_query(
-                query, 
+                message,
                 websocket, 
                 conversation_history,
                 model_manager)

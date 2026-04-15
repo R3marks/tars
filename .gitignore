@@ -41,3 +41,4 @@ image_generator.py
 # Personal files
 *.txt
 *.html
+backend/docs/
