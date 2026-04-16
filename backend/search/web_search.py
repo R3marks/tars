@@ -1,7 +1,14 @@
+import logging
+import time
+from urllib.parse import quote_plus
+
+import requests
+from bs4 import BeautifulSoup
 from crawl4ai import AsyncWebCrawler
 from ddgs import DDGS
 from ollama import chat
-import time
+
+logger = logging.getLogger("uvicorn.error")
 
 def check_if_search_is_needed(query: str) -> bool:
     """Check if web browsing is needed based on the query context."""
@@ -72,16 +79,83 @@ def reformulate_query_into_internet_search(query: str) -> str:
     return response.message.content 
 
 def run_web_search(query: str, max_results: int = 3) -> list[dict]:
-    print(query)
+    logger.info("Running web search for query: %s", query)
+
+    try:
+        results = run_ddgs_search(query, max_results)
+        if results:
+            logger.info("DDGS search returned %s results", len(results))
+            return results
+    except Exception:
+        logger.exception("DDGS search failed for query: %s", query)
+
+    fallback_results = run_duckduckgo_html_search(query, max_results)
+    logger.info("Fallback HTML search returned %s results", len(fallback_results))
+    return fallback_results
+
+
+def run_ddgs_search(query: str, max_results: int) -> list[dict]:
     results = []
+
     with DDGS() as ddgs:
-        for r in ddgs.text(query, max_results=max_results):
-            if r and all(k in r for k in ("title", "body", "href")):
-                results.append({
-                    "title": r["title"],
-                    "snippet": r["body"],
-                    "url": r["href"]
-                })
+        for result in ddgs.text(query, max_results=max_results):
+            if not result:
+                continue
+
+            if not all(key in result for key in ("title", "body", "href")):
+                continue
+
+            results.append({
+                "title": result["title"],
+                "snippet": result["body"],
+                "url": result["href"],
+            })
+
+    return results
+
+
+def run_duckduckgo_html_search(query: str, max_results: int) -> list[dict]:
+    search_url = f"https://duckduckgo.com/html/?q={quote_plus(query)}"
+
+    try:
+        response = requests.get(
+            search_url,
+            timeout=20,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Tars/0.1",
+            },
+        )
+        response.raise_for_status()
+    except Exception:
+        logger.exception("DuckDuckGo HTML fallback search failed for query: %s", query)
+        return []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    results = []
+
+    for result_node in soup.select(".result"):
+        title_link = result_node.select_one(".result__title a")
+        snippet_node = result_node.select_one(".result__snippet")
+
+        if title_link is None:
+            continue
+
+        title = title_link.get_text(" ", strip=True)
+        snippet = "" if snippet_node is None else snippet_node.get_text(" ", strip=True)
+        url = title_link.get("href", "").strip()
+
+        if not title or not url:
+            continue
+
+        results.append({
+            "title": title,
+            "snippet": snippet,
+            "url": url,
+        })
+
+        if len(results) >= max_results:
+            break
+
     return results
 
 def select_best_link(question: str, links: list[dict]) -> dict:

@@ -1,6 +1,7 @@
 """Handle lightweight fact checks with optional web verification."""
 
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 from fastapi import WebSocket
@@ -9,6 +10,8 @@ from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
 from src.message_structures.message import Message
+
+logger = logging.getLogger("uvicorn.error")
 
 
 async def handle_fact_check(
@@ -24,6 +27,28 @@ async def handle_fact_check(
     })
 
     search_results = await run_search(query)
+    logger.info(
+        "Fact-check search returned %s results for query: %s",
+        len(search_results),
+        query,
+    )
+
+    if not search_results:
+        final_response = build_fact_check_fallback([])
+        conversation_history.append_message(
+            Message(role="assistant", content=final_response),
+        )
+
+        await websocket.send_json({
+            "type": "final_response",
+            "message": final_response,
+        })
+        await websocket.send_json({
+            "type": "final",
+            "message": "[DONE]",
+        })
+        return
+
     prompt = build_fact_check_prompt(
         query=query,
         search_results=search_results,
@@ -55,11 +80,13 @@ async def run_search(query: str) -> list[dict]:
     try:
         from search.web_search import run_web_search
     except Exception:
+        logger.exception("Could not import run_web_search")
         return []
 
     try:
         return await asyncio.to_thread(run_web_search, query, 5)
     except Exception:
+        logger.exception("Search failed for query: %s", query)
         return []
 
 
