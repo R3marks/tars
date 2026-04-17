@@ -44,4 +44,5 @@ image_generator.py
 backend/docs/
 backend/config/
 generated_application_answers.md
+personal/
 generated/

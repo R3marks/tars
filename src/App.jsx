@@ -2,8 +2,6 @@ import './App.css';
 import { useState, useEffect, useRef } from 'react';
 import InputBox from './InputBox/InputBox.jsx';
 import ChatWindow from './ChatWindow/ChatWindow.jsx';
-import { warn, debug, trace, info, error } from '@tauri-apps/plugin-log';
-
 
 function App() {
   const [data, setData] = useState([]); // Store full chat history
@@ -12,36 +10,37 @@ function App() {
   useEffect(() => {
     ws.current = new WebSocket('ws://localhost:3001/ws/agent');
 
-    // Helper function to format message chunk
     function formatMessageChunk(type, message) {
       let prefix = "";
       let suffix = "";
-      let newLine = "\n\n";  // Always add newline for now
-      console.log(type)
+      let newLine = "\n\n";
+
+      console.log(type);
+
       switch (type) {
         case "ack":
           prefix = "[ACK] ";
-          suffix = " [/ACK]"
+          suffix = " [/ACK]";
           break;
         case "route_decision":
           prefix = "[ROUTER] ";
-          suffix = " [/ROUTER]"
+          suffix = " [/ROUTER]";
           break;
         case "status":
           prefix = "[STATUS] ";
-          suffix = " [/STATUS]"
-          break; 
+          suffix = " [/STATUS]";
+          break;
         case "partial_result":
           prefix = "[PARTIAL RESULT] ";
-          suffix = " [/PARTIAL RESULT]"
+          suffix = " [/PARTIAL RESULT]";
           break;
         case "final_response":
           prefix = "";
-          suffix = "";  // Streaming chunks—no newline after each fragment
+          suffix = "";
           newLine = "";
           break;
         case "error":
-          prefix = "⚠️ ERROR: ";
+          prefix = "ERROR: ";
           newLine = "\n";
           break;
         default:
@@ -63,16 +62,11 @@ function App() {
 
         const formattedChunk = formatMessageChunk(dataObj.type, dataObj.message);
 
-        if (
-          dataObj.type === "ack"
-        ) {
+        if (dataObj.type === "ack") {
           updated[updated.length - 1].reply = formattedChunk;
         }
 
-        if (
-          dataObj.type === "status"
-          || dataObj.type === "result"
-        ) {
+        if (dataObj.type === "status" || dataObj.type === "result") {
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
             reply: updated[updated.length - 1].reply + formattedChunk
@@ -89,7 +83,6 @@ function App() {
             return updated;
           }
 
-          // Always update last message
           updated[updated.length - 1] = {
             ...updated[updated.length - 1],
             reply: updated[updated.length - 1].reply + formattedChunk
@@ -97,7 +90,6 @@ function App() {
         }
 
         if (dataObj.type === "error") {
-          // Errors get a new message block
           updated.push({ user: null, reply: formattedChunk });
         }
 
@@ -121,15 +113,14 @@ function App() {
   function sendMessageToTars(message) {
     console.log("Sending message to Tars (WS)");
 
-    // Add user message instantly
     setData((prev) => [...prev, { user: message, reply: "...\n\n", done: false }]);
 
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      console.log("Sending message " + message)
+      console.log("Sending message " + message);
       ws.current.send(JSON.stringify({
         type: "user_message",
         message: message,
-        sessionId: 1  // future-proofing for multi-session support
+        sessionId: 1
       }));
     }
   }
@@ -138,10 +129,7 @@ function App() {
     <div className="app">
       <h1 className="app-header">TARS</h1>
       <ChatWindow data={data} />
-      <InputBox 
-        askOllama={sendMessageToTars}
-        showTars={() => {}}
-      />
+      <InputBox askOllama={sendMessageToTars} />
     </div>
   );
 }
