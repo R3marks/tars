@@ -1,9 +1,11 @@
 import json
 import logging
+import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from src.app.router import handle_query
+from src.app.ws_events import send_acknowledgement, send_run_accepted, send_run_failed
 from src.config.ModelConfig import ModelConfig
 from src.config.InferenceProvider import InferenceProvider
 from src.infer.LlamaCppServerModelManager import LlamaCppServerModelManager
@@ -41,8 +43,23 @@ async def agent_websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             payload = json.loads(data)
-            message = payload.get('message')
+            session_id = payload.get("session_id") or payload.get("sessionId") or 1
+            event_kind = payload.get("event_kind", "")
+            payload_body = payload.get("payload", {})
+            message = payload_body.get("message") or payload.get("message", "")
+
+            if not message:
+                await send_run_failed(
+                    websocket=websocket,
+                    run_id=str(uuid.uuid4()),
+                    session_id=session_id,
+                    error="No user message was provided.",
+                )
+                continue
+
+            run_id = str(uuid.uuid4())
             logger.info(f"Query received in api: '{message[:100]}'")
+            logger.info("Incoming websocket event kind: %s", event_kind or "legacy.user_message")
 
             query: Message = Message(
                 role = "user", 
@@ -53,6 +70,13 @@ async def agent_websocket_endpoint(websocket: WebSocket):
 
             # Append the query to the conversation history
             conversation_history.append_message(query)
+
+            await send_run_accepted(
+                websocket=websocket,
+                run_id=run_id,
+                session_id=session_id,
+                user_message=message,
+            )
 
             fast_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
 
@@ -79,10 +103,12 @@ async def agent_websocket_endpoint(websocket: WebSocket):
             )
 
             # Now send the full ACK in one message
-            await websocket.send_json({
-                "type": "ack",
-                "message": acknowledgement_response.strip()
-            })
+            await send_acknowledgement(
+                websocket=websocket,
+                run_id=run_id,
+                session_id=session_id,
+                text=acknowledgement_response.strip(),
+            )
 
             # TODO add this to metadata message history
             acknowledgement_response_message: Message = Message(
@@ -94,9 +120,12 @@ async def agent_websocket_endpoint(websocket: WebSocket):
 
             await handle_query(
                 message,
-                websocket, 
+                websocket,
+                run_id,
+                session_id,
                 conversation_history,
-                model_manager)
+                model_manager,
+            )
             
     except WebSocketDisconnect:
         logger.warning("Client disconnected")

@@ -1,80 +1,224 @@
 .chat-message {
-  margin-bottom: 12px;
-  width: 100%;
-  height: auto;
-  display: flex;        /* stack user and tars vertically */
-  flex-direction: column;
-  align-items: stretch; /* make children fill width */
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
-.chat-message ul {
-  padding-left: 40px;
-  list-style-type: disc; /* or 'decimal' for numbered lists */
+.chat-message:last-child {
+  margin-bottom: 0;
 }
 
-/* container for each side's bubble/area */
 .message {
   display: flex;
   width: 100%;
-  margin: 6px 0;
-  /* align-items: flex-start; */
 }
 
-/* left-aligned user block */
 .message.user {
   justify-content: flex-start;
-  height: auto;
-  width: auto;
-  text-align: left;     /* text alignment inside block */
-  color: whitesmoke;    /* user text color */
 }
 
-/* right-aligned assistant block */
 .message.tars {
   justify-content: flex-end;
-  height: auto;
-  text-align: left;    /* text alignment inside block */
-  color: lightseagreen; /* assistant text color */
 }
 
-/* Keep the content width manageable (avoid full-width stretching) */
 .message-inner {
-  width: auto;
-  /* max-width: 100%; */
+  width: min(82%, 1080px);
+  border-radius: 18px;
+  padding: 14px 16px;
   word-break: break-word;
-  /* optional styling: background, padding, border-radius if you want bubbles */
-  /* background: rgba(255,255,255,0.03); */
-  /* padding: 6px 10px; */
-  /* border-radius: 6px; */
 }
 
-/* Labels */
+.user-surface {
+  border: 1px solid rgba(149, 159, 179, 0.16);
+  background: rgba(14, 15, 18, 0.96);
+  color: #f4f6fb;
+}
+
+.tars-surface {
+  border: 1px solid rgba(78, 109, 191, 0.22);
+  background:
+    linear-gradient(180deg, rgba(6, 8, 14, 0.98), rgba(4, 7, 13, 0.995)),
+    radial-gradient(circle at top right, rgba(73, 111, 190, 0.05), transparent 30%);
+  color: #a8c0ff;
+}
+
+.assistant-header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(121, 142, 194, 0.12);
+}
+
 .chat-label {
   display: block;
-  font-weight: 700;
-  margin-bottom: 4px;
-  font-size: 1.25rem;
+  color: #edf2fb;
+  font-size: 0.9rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
 }
 
-/* inline code */
+.assistant-section {
+  margin-top: 14px;
+}
+
+.section-title {
+  margin: 0 0 8px;
+  color: #8395bb;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.acknowledgement-strip,
+.assistant-response,
+.structured-card,
+.error-state {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(101, 123, 175, 0.14);
+  background: rgba(9, 12, 18, 0.9);
+}
+
+.acknowledgement-copy,
+.error-message,
+.error-detail {
+  margin: 0;
+  line-height: 1.68;
+}
+
+.timeline-list,
+.card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.timeline-item.progress {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+}
+
+.timeline-item.route,
+.timeline-item.phase {
+  display: flex;
+  align-items: center;
+}
+
+.timeline-bullet {
+  width: 7px;
+  height: 7px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: #77dc6d;
+  box-shadow: 0 0 10px rgba(119, 220, 109, 0.42);
+}
+
+.timeline-text {
+  margin: 0;
+  color: #eff4ff;
+  line-height: 1.6;
+}
+
+.timeline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(197, 157, 66, 0.18);
+  background: rgba(44, 34, 12, 0.3);
+  cursor: help;
+}
+
+.timeline-pill-label {
+  color: #8a7852;
+  font-size: 0.68rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.timeline-pill-value {
+  color: #d0b26a;
+  font-size: 0.84rem;
+}
+
+.card-eyebrow {
+  margin: 0 0 8px;
+  color: #8696ba;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
+}
+
+.artifact-path,
+.artifact-label,
+.artifact-status {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.artifact-path {
+  color: #dce5fb;
+}
+
+.artifact-label,
+.artifact-status {
+  color: #92a0c0;
+}
+
+.structured-details {
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(2, 4, 10, 0.78);
+  color: #aab8d8;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  font-size: 0.84rem;
+}
+
+.error-state {
+  border-color: rgba(216, 177, 79, 0.18);
+  background: rgba(28, 20, 7, 0.54);
+}
+
+.error-message {
+  color: #ebcf89;
+}
+
+.error-detail {
+  margin-top: 6px;
+  color: #bea877;
+}
+
 .inline-code {
-  background-color: #333;
+  background-color: rgba(112, 132, 188, 0.12);
   padding: 2px 6px;
   border-radius: 4px;
-  font-family: monospace;
-  font-size: 1.1em;
+  font-size: 0.95em;
   white-space: pre-wrap;
 }
 
-/* code block container class from SyntaxHighlighter */
 .code-block {
-  margin: 0.5rem 0;
-  border-radius: 6px;
+  margin: 0.75rem 0 0;
+  border-radius: 10px;
   overflow: auto;
   font-size: 0.9rem;
 }
 
-/* tweak lists, paragraphs etc if you want */
-.message-inner p {
-  margin: 0.35rem 0;
+.message-inner p,
+.message-inner ul,
+.message-inner ol {
+  margin-top: 0;
+}
+
+.message-inner ul,
+.message-inner ol {
+  padding-left: 24px;
+}
+
+@media (max-width: 900px) {
+  .message-inner {
+    width: min(100%, 100%);
+  }
 }

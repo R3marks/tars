@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from fastapi import WebSocket
 
+from src.app.ws_events import send_phase_changed, send_response_delta, send_run_completed
 from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
@@ -48,6 +49,8 @@ class TaskAgentDecision:
 async def handle_task_query(
     query: str,
     websocket: WebSocket,
+    run_id: str,
+    session_id: int,
     conversation_history: Conversation,
     model_manager: ModelManager,
     orchestration_models: OrchestrationModels,
@@ -62,28 +65,43 @@ async def handle_task_query(
         decision.agent_name,
         decision.reason,
     )
+    await send_phase_changed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        phase="executing",
+        detail=f"Selected task agent: {decision.agent_name}",
+    )
 
     if decision.agent_name == "job_application_agent":
         workflow_result = await run_job_application_workflow(
             query=query,
             websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
             conversation_history=conversation_history,
             model_manager=model_manager,
             orchestration_models=orchestration_models,
         )
-        await websocket.send_json({
-            "type": "final_response",
-            "message": workflow_result.final_response,
-        })
-        await websocket.send_json({
-            "type": "final",
-            "message": "[DONE]",
-        })
+        await send_response_delta(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            text=workflow_result.final_response,
+        )
+        await send_run_completed(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            status=workflow_result.status,
+        )
         return
 
     await handle_generic_query(
         query=query,
         websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
         conversation_history=conversation_history,
         model=orchestration_models.worker_model,
         model_manager=model_manager,

@@ -24,6 +24,8 @@ What it does not yet have is a clean, agreed architecture boundary between:
 
 Milestone 0 exists to establish that foundation first.
 
+Milestone 0.5 exists to define the communication boundary between the frontend and backend before milestone 1 deepens the product surface.
+
 ## Architectural Direction
 
 The target architecture should be a modular monolith.
@@ -92,6 +94,20 @@ This milestone exists to answer:
 
 Milestone 0 is deliberately about architecture plus cleanup together.
 It is not a generic housekeeping milestone and it is not a feature milestone.
+
+## Milestone 0.5
+
+Define the frontend/backend communication boundary and upgrade the operator experience of the chat UI.
+
+This milestone exists to answer:
+
+- how the frontend and backend talk to each other in a stable typed way
+- how TARS acknowledgement, progress, results, and failures should appear in the product
+- how the UI should remain conversational while still rendering structured outputs clearly
+- how milestone 1 job-search and application flows can be added without redesigning the protocol again
+
+Milestone 0.5 is deliberately a boundary and UX architecture milestone.
+It is not only a websocket refactor, and it is not yet the full job-domain feature milestone.
 
 ## Milestone 1
 

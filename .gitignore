@@ -9,6 +9,7 @@ tars-front-end/tari/node_modules/
 
 # Build output
 /build
+/dist/
 tars-front-end/build/
 tars-front-end/tari/dist/
 tars-front-end/tari/dist-ssr/

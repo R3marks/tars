@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import WebSocket
 
+from src.app.ws_events import send_progress_update, send_response_delta, send_result_event, send_run_completed
 from src.agents.criteria_agent import extract_expected_outcomes
 from src.agents.executor_agent import execute_step
 from src.agents.planner_agent import plan_for_outcome
@@ -47,6 +48,8 @@ def compact_value_for_prompt(value, max_chars: int = MAX_PROMPT_RESULT_CHARS):
 async def handle_generic_query(
     query: str,
     websocket: WebSocket,
+    run_id: str,
+    session_id: int,
     conversation_history: Conversation,
     model: Model,
     model_manager: ModelManager,
@@ -63,10 +66,13 @@ async def handle_generic_query(
     logger.info("Generic flow created %s expected outcomes", len(expected_outcomes))
 
     for expected_outcome_index, expected_outcome in enumerate(expected_outcomes, 1):
-        await websocket.send_json({
-            "type": "status",
-            "message": f"Working on: {expected_outcome}",
-        })
+        await send_progress_update(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            status=f"Working on: {expected_outcome}",
+            details={"expected_outcome_index": expected_outcome_index},
+        )
 
         attempts = []
         satisfied = False
@@ -170,10 +176,15 @@ async def handle_generic_query(
         if satisfied:
             continue
 
-        await websocket.send_json({
-            "type": "partial_result",
-            "message": f"Could not fully satisfy: {expected_outcome}",
-        })
+        await send_result_event(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            result_type="partial_result",
+            payload={"status": "blocked", "expected_outcome": expected_outcome},
+            legacy_type="partial_result",
+            legacy_message=f"Could not fully satisfy: {expected_outcome}",
+        )
 
     try:
         with open(r"T:\Code\Apps\Tars\context.txt", "w", encoding="utf-8") as file:
@@ -202,10 +213,12 @@ async def handle_generic_query(
         [Message(role="user", content=summarise_step_prompt)],
     ):
         final_response_parts.append(chunk["content"])
-        await websocket.send_json({
-            "type": "final_response",
-            "message": chunk["content"],
-        })
+        await send_response_delta(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            text=chunk["content"],
+        )
 
     final_response = "".join(final_response_parts).strip()
     if final_response:
@@ -213,7 +226,8 @@ async def handle_generic_query(
             Message(role="assistant", content=final_response),
         )
 
-    await websocket.send_json({
-        "type": "final",
-        "message": "[DONE]",
-    })
+    await send_run_completed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+    )

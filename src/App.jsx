@@ -1,135 +1,185 @@
-import './App.css';
-import { useState, useEffect, useRef } from 'react';
-import InputBox from './InputBox/InputBox.jsx';
-import ChatWindow from './ChatWindow/ChatWindow.jsx';
+import "./App.css";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import InputBox from "./InputBox/InputBox.jsx";
+import ChatWindow from "./ChatWindow/ChatWindow.jsx";
+import TarsSpinner from "./TarsSpinner/TarsSpinner.jsx";
+import { chatRunsReducer, hasActiveRun } from "./runState.js";
 
-function App() {
-  const [data, setData] = useState([]); // Store full chat history
-  const ws = useRef(null);
+const WEBSOCKET_URL = "ws://localhost:3001/ws/agent";
+const SESSION_ID = 1;
 
-  useEffect(() => {
-    ws.current = new WebSocket('ws://localhost:3001/ws/agent');
-
-    function formatMessageChunk(type, message) {
-      let prefix = "";
-      let suffix = "";
-      let newLine = "\n\n";
-
-      console.log(type);
-
-      switch (type) {
-        case "ack":
-          prefix = "[ACK] ";
-          suffix = " [/ACK]";
-          break;
-        case "route_decision":
-          prefix = "[ROUTER] ";
-          suffix = " [/ROUTER]";
-          break;
-        case "status":
-          prefix = "[STATUS] ";
-          suffix = " [/STATUS]";
-          break;
-        case "partial_result":
-          prefix = "[PARTIAL RESULT] ";
-          suffix = " [/PARTIAL RESULT]";
-          break;
-        case "final_response":
-          prefix = "";
-          suffix = "";
-          newLine = "";
-          break;
-        case "error":
-          prefix = "ERROR: ";
-          newLine = "\n";
-          break;
-        default:
-          break;
-      }
-
-      return `${prefix}${message}${suffix}${newLine}`;
-    }
-
-    ws.current.onmessage = (event) => {
-      const dataObj = JSON.parse(event.data);
-
-      setData((prev) => {
-        const updated = [...prev];
-
-        if (updated.length === 0) {
-          updated.push({ user: null, reply: "" });
-        }
-
-        const formattedChunk = formatMessageChunk(dataObj.type, dataObj.message);
-
-        if (dataObj.type === "ack") {
-          updated[updated.length - 1].reply = formattedChunk;
-        }
-
-        if (dataObj.type === "status" || dataObj.type === "result") {
-          updated[updated.length - 1] = {
-            ...updated[updated.length - 1],
-            reply: updated[updated.length - 1].reply + formattedChunk
-          };
-        }
-
-        if (
-          dataObj.type === "route_decision"
-          || dataObj.type === "final"
-          || dataObj.type === "final_response"
-        ) {
-          if (dataObj.message === "[DONE]") {
-            updated[updated.length - 1].done = true;
-            return updated;
-          }
-
-          updated[updated.length - 1] = {
-            ...updated[updated.length - 1],
-            reply: updated[updated.length - 1].reply + formattedChunk
-          };
-        }
-
-        if (dataObj.type === "error") {
-          updated.push({ user: null, reply: formattedChunk });
-        }
-
-        return updated;
-      });
+function getSignalState(connectionState, activeRunExists) {
+  if (connectionState === "disconnected") {
+    return {
+      tone: "offline",
+      label: "Disconnected",
+      detail: "No backend link",
     };
+  }
 
-    ws.current.onopen = () => {
-      console.log("WebSocket Connected");
+  if (connectionState === "error") {
+    return {
+      tone: "warning",
+      label: "Error",
+      detail: "Transport fault",
     };
+  }
 
-    ws.current.onclose = () => {
-      console.log("WebSocket Disconnected");
+  if (connectionState === "connected" && activeRunExists) {
+    return {
+      tone: "processing",
+      label: "Processing",
+      detail: "Live stream active",
     };
+  }
 
-    return () => {
-      ws.current.close();
+  if (connectionState === "connected") {
+    return {
+      tone: "online",
+      label: "Connected",
+      detail: "Standing by",
     };
-  }, []);
+  }
 
-  function sendMessageToTars(message) {
-    console.log("Sending message to Tars (WS)");
+  return {
+    tone: "booting",
+    label: "Connecting",
+    detail: "Establishing link",
+  };
+}
 
-    setData((prev) => [...prev, { user: message, reply: "...\n\n", done: false }]);
+function findActiveRun(runs) {
+  for (let index = runs.length - 1; index >= 0; index -= 1) {
+    const run = runs[index];
 
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      console.log("Sending message " + message);
-      ws.current.send(JSON.stringify({
-        type: "user_message",
-        message: message,
-        sessionId: 1
-      }));
+    if (run.status === "queued" || run.status === "accepted" || run.status === "running") {
+      return run;
     }
   }
 
+  return null;
+}
+
+function App() {
+  const [runs, dispatch] = useReducer(chatRunsReducer, []);
+  const [connectionState, setConnectionState] = useState("connecting");
+  const websocketRef = useRef(null);
+
+  useEffect(() => {
+    const websocket = new WebSocket(WEBSOCKET_URL);
+    websocketRef.current = websocket;
+
+    websocket.onmessage = (event) => {
+      const rawEvent = JSON.parse(event.data);
+
+      dispatch({
+        type: "event.received",
+        rawEvent,
+      });
+    };
+
+    websocket.onopen = () => {
+      setConnectionState("connected");
+    };
+
+    websocket.onclose = () => {
+      setConnectionState("disconnected");
+    };
+
+    websocket.onerror = () => {
+      setConnectionState("error");
+    };
+
+    return () => {
+      websocket.close();
+    };
+  }, []);
+
+  function sendMessageToTars(messageText) {
+    const userMessage = messageText.trim();
+
+    if (!userMessage) {
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const localId = `local-${createdAt}`;
+
+    dispatch({
+      type: "run.queued",
+      localId,
+      sessionId: SESSION_ID,
+      userMessage,
+      createdAt,
+    });
+
+    if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    websocketRef.current.send(JSON.stringify({
+      event_kind: "run.create",
+      session_id: SESSION_ID,
+      payload: {
+        message: userMessage,
+      },
+    }));
+  }
+
+  const activeRunExists = hasActiveRun(runs);
+  const signalState = getSignalState(connectionState, activeRunExists);
+  const activeRun = useMemo(() => findActiveRun(runs), [runs]);
+
   return (
-    <div className="app">
-      <h1 className="app-header">TARS</h1>
-      <ChatWindow data={data} />
-      <InputBox askOllama={sendMessageToTars} />
+    <div className="app-shell">
+      <div className="console-shell">
+        <header className="console-header">
+          <div className="console-signal-group">
+            <div className={`signal-lamp ${signalState.tone}`}>
+              {signalState.tone === "processing" ? (
+                <TarsSpinner size="compact" tone="signal" />
+              ) : (
+                <span className="signal-core" />
+              )}
+            </div>
+            <div className="signal-copy">
+              <p className="signal-label">{signalState.label}</p>
+              <p className="signal-detail">{signalState.detail}</p>
+            </div>
+          </div>
+
+          <div className="console-brand">
+            <p className="console-brand-caption">CASE / TARS</p>
+            <div className="console-brand-row">
+              <p className="console-brand-mark">T A R S</p>
+              <p className="console-brand-cn">{"\u5854\u65af"}</p>
+            </div>
+          </div>
+
+          <div className="console-heading">
+            <p className="console-kicker">Interface</p>
+            <p className="console-title">Terminal Session</p>
+          </div>
+        </header>
+
+        <main className="app-main">
+          <ChatWindow
+            runs={runs}
+            activeRun={activeRun}
+            activeRunExists={activeRunExists}
+          />
+        </main>
+
+        <footer className="app-footer">
+          <InputBox
+            askOllama={sendMessageToTars}
+            disabled={connectionState !== "connected"}
+            canSend={connectionState === "connected" && !activeRunExists}
+            connectionState={connectionState}
+            hasActiveRun={activeRunExists}
+          />
+        </footer>
+      </div>
     </div>
   );
 }

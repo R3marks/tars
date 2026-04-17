@@ -1,0 +1,91 @@
+.tars-spinner {
+  --spinner-color: #8fd98c;
+  --spinner-shadow: rgba(143, 217, 140, 0.2);
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  width: 34px;
+  height: 22px;
+}
+
+.tars-spinner.compact {
+  width: 24px;
+  height: 16px;
+  gap: 2px;
+}
+
+.tars-spinner.medium {
+  width: 34px;
+  height: 22px;
+}
+
+.tars-spinner.large {
+  width: 48px;
+  height: 30px;
+  gap: 4px;
+}
+
+.tars-spinner.signal {
+  --spinner-color: #8fd98c;
+  --spinner-shadow: rgba(143, 217, 140, 0.2);
+}
+
+.tars-spinner.terminal {
+  --spinner-color: #d4b251;
+  --spinner-shadow: rgba(212, 178, 81, 0.22);
+}
+
+.spinner-arm {
+  width: 16%;
+  height: 100%;
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.02) 26%),
+    linear-gradient(180deg, var(--spinner-color), rgba(16, 18, 20, 0.98));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 12px var(--spinner-shadow);
+  transform-origin: 50% 100%;
+  animation: tars-bar-stride 1.05s ease-in-out infinite;
+}
+
+.arm-one {
+  animation-delay: 0s;
+}
+
+.arm-two {
+  animation-delay: 0.14s;
+}
+
+.arm-three {
+  animation-delay: 0.32s;
+}
+
+.arm-four {
+  animation-delay: 0.48s;
+}
+
+@keyframes tars-bar-stride {
+  0%,
+  100% {
+    transform: translateY(7px) scaleY(0.46) rotate(-9deg);
+    opacity: 0.32;
+  }
+
+  18% {
+    transform: translateY(-4px) scaleY(1.04) rotate(-4deg);
+    opacity: 1;
+  }
+
+  42% {
+    transform: translateY(2px) scaleY(0.7) rotate(5deg);
+    opacity: 0.78;
+  }
+
+  70% {
+    transform: translateY(-8px) scaleY(1.08) rotate(10deg);
+    opacity: 0.92;
+  }
+}

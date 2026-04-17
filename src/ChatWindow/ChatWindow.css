@@ -1,17 +1,87 @@
 .chat-window {
-	display: flex;
-	flex-direction: column;
-	justify-content: flex-start;
-	align-items: flex-start;
-	width: 80%;
-	height: 100%;
-	margin-top: 50px;
-	margin-bottom: 60px;
-	border: 1px solid #ccc;
-	border-radius: 15px;
-	padding: 15px;
-	overflow-x: scroll;
-	overflow-y: scroll;
-	background-color: black;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid rgba(94, 109, 145, 0.16);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(2, 3, 5, 0.96), rgba(4, 5, 8, 0.985)),
+    radial-gradient(circle at top right, rgba(73, 111, 190, 0.03), transparent 30%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.015);
 }
-  
+
+.chat-window.empty {
+  display: grid;
+  place-items: center;
+}
+
+.terminal-activity {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(99, 170, 92, 0.14);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(5, 11, 5, 0.96), rgba(7, 12, 7, 0.98)),
+    radial-gradient(circle at left, rgba(119, 220, 109, 0.08), transparent 24%);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.terminal-activity-light {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #77dc6d;
+  box-shadow: 0 0 12px rgba(119, 220, 109, 0.54);
+}
+
+.terminal-activity-copy {
+  margin: 0;
+  color: #edf4ec;
+  line-height: 1.45;
+}
+
+.empty-state {
+  max-width: 620px;
+  padding: 24px 28px;
+  border: 1px solid rgba(89, 106, 147, 0.2);
+  border-radius: 16px;
+  background: rgba(6, 8, 12, 0.92);
+  color: #a7b6d8;
+}
+
+.empty-state-title {
+  margin: 0 0 12px;
+  color: #e4ebfb;
+  font-size: 1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.empty-state-copy {
+  margin: 0;
+  line-height: 1.75;
+}
+
+@media (max-width: 720px) {
+  .chat-window {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .terminal-activity {
+    grid-template-columns: auto 1fr;
+  }
+
+  .terminal-activity-copy {
+    grid-column: 1 / -1;
+  }
+
+  .empty-state {
+    padding: 18px;
+  }
+}

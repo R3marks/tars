@@ -2,6 +2,7 @@
 
 from fastapi import WebSocket
 
+from src.app.ws_events import send_response_delta, send_run_completed
 from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
@@ -11,6 +12,8 @@ from src.message_structures.message import Message
 async def handle_direct_chat(
     query: str,
     websocket: WebSocket,
+    run_id: str,
+    session_id: int,
     conversation_history: Conversation,
     model: Model,
     model_manager: ModelManager,
@@ -31,14 +34,17 @@ async def handle_direct_chat(
         Message(role="assistant", content=final_response),
     )
 
-    await websocket.send_json({
-        "type": "final_response",
-        "message": final_response,
-    })
-    await websocket.send_json({
-        "type": "final",
-        "message": "[DONE]",
-    })
+    await send_response_delta(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        text=final_response,
+    )
+    await send_run_completed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+    )
 
 
 def build_direct_chat_prompt(

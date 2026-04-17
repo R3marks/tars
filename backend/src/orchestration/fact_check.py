@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket
 
+from src.app.ws_events import send_progress_update, send_response_delta, send_run_completed
 from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
@@ -17,14 +18,18 @@ logger = logging.getLogger("uvicorn.error")
 async def handle_fact_check(
     query: str,
     websocket: WebSocket,
+    run_id: str,
+    session_id: int,
     conversation_history: Conversation,
     model: Model,
     model_manager: ModelManager,
 ):
-    await websocket.send_json({
-        "type": "status",
-        "message": "Fact-checking with web search",
-    })
+    await send_progress_update(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        status="Fact-checking with web search",
+    )
 
     search_results = await run_search(query)
     logger.info(
@@ -39,14 +44,17 @@ async def handle_fact_check(
             Message(role="assistant", content=final_response),
         )
 
-        await websocket.send_json({
-            "type": "final_response",
-            "message": final_response,
-        })
-        await websocket.send_json({
-            "type": "final",
-            "message": "[DONE]",
-        })
+        await send_response_delta(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            text=final_response,
+        )
+        await send_run_completed(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+        )
         return
 
     prompt = build_fact_check_prompt(
@@ -66,14 +74,17 @@ async def handle_fact_check(
         Message(role="assistant", content=final_response),
     )
 
-    await websocket.send_json({
-        "type": "final_response",
-        "message": final_response,
-    })
-    await websocket.send_json({
-        "type": "final",
-        "message": "[DONE]",
-    })
+    await send_response_delta(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        text=final_response,
+    )
+    await send_run_completed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+    )
 
 
 async def run_search(query: str) -> list[dict]:

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import WebSocket
 
+from src.app.ws_events import send_artifact_event, send_progress_update, send_result_event
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
 from src.message_structures.message import Message
@@ -23,15 +24,17 @@ logger = logging.getLogger("uvicorn.error")
 async def run_job_application_workflow(
     query: str,
     websocket: WebSocket,
+    run_id: str,
+    session_id: int,
     conversation_history: Conversation,
     model_manager: ModelManager,
     orchestration_models: OrchestrationModels,
 ) -> WorkflowRunResult:
-    await send_status(websocket, "Parsing job application request")
+    await send_status(websocket, run_id, session_id, "Parsing job application request")
     request = parse_job_application_request(query)
     config = get_job_application_skill_package()
 
-    await send_status(websocket, "Building shared application context")
+    await send_status(websocket, run_id, session_id, "Building shared application context")
     application_context = await build_application_context(
         request=request,
         planner_model=orchestration_models.planner_model,
@@ -44,7 +47,7 @@ async def run_job_application_workflow(
     skill_results = []
 
     if "cv" in application_context.request.requested_artifacts:
-        await send_status(websocket, "Running CV package")
+        await send_status(websocket, run_id, session_id, "Running CV package")
         skill_results.append(
             run_cv_package(
                 application_context=application_context,
@@ -56,7 +59,7 @@ async def run_job_application_workflow(
         )
 
     if "cover_letter" in application_context.request.requested_artifacts:
-        await send_status(websocket, "Running cover letter package")
+        await send_status(websocket, run_id, session_id, "Running cover letter package")
         skill_results.append(
             run_cover_letter_package(
                 application_context=application_context,
@@ -66,7 +69,7 @@ async def run_job_application_workflow(
         )
 
     if "application_answers" in application_context.request.requested_artifacts:
-        await send_status(websocket, "Running application answers package")
+        await send_status(websocket, run_id, session_id, "Running application answers package")
         skill_results.append(
             run_application_answers_package(
                 application_context=application_context,
@@ -76,7 +79,7 @@ async def run_job_application_workflow(
         )
 
     if "form_field_answers" in application_context.request.requested_artifacts:
-        await send_status(websocket, "Preparing form field answers")
+        await send_status(websocket, run_id, session_id, "Preparing form field answers")
         skill_results.append(
             run_form_field_answers_package(
                 application_context=application_context,
@@ -89,8 +92,17 @@ async def run_job_application_workflow(
         supplementary_outputs=supplementary_outputs,
     )
     supplementary_outputs.append(review_package_path)
+    await send_artifact_event(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        artifact_type="review_package",
+        path=review_package_path,
+        status="generated",
+        label="Review package",
+    )
 
-    await send_workflow_summary(websocket, skill_results, supplementary_outputs)
+    await send_workflow_summary(websocket, run_id, session_id, skill_results, supplementary_outputs)
 
     final_response = build_final_response(skill_results, supplementary_outputs)
     conversation_history.append_message(Message(role="assistant", content=final_response))
@@ -191,12 +203,24 @@ def deduplicate_items(items: list[str]) -> list[str]:
     return deduplicated_items
 
 
-async def send_status(websocket: WebSocket, message: str):
-    await websocket.send_json({"type": "status", "message": message})
+async def send_status(
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+    message: str,
+):
+    await send_progress_update(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        status=message,
+    )
 
 
 async def send_workflow_summary(
     websocket: WebSocket,
+    run_id: str,
+    session_id: int,
     skill_results: list[SkillResult],
     supplementary_outputs: list[str],
 ):
@@ -232,14 +256,21 @@ async def send_workflow_summary(
 
     summary_message = "Workflow summary: " + "; ".join(summary_parts or ["no artifacts were generated"])
     logger.info(summary_message)
-    await websocket.send_json({
-        "type": "workflow_summary",
-        "message": summary_message,
-        "changed": changed,
-        "blocked": blocked,
-        "needs_review": needs_review,
-        "output_paths": outputs + supplementary_outputs,
-    })
+    await send_result_event(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        result_type="workflow_summary",
+        payload={
+            "summary": summary_message,
+            "changed": changed,
+            "blocked": blocked,
+            "needs_review": needs_review,
+            "output_paths": outputs + supplementary_outputs,
+        },
+        legacy_type="workflow_summary",
+        legacy_message=summary_message,
+    )
 
 
 def write_supplementary_outputs(

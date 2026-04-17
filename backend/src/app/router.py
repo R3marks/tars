@@ -2,6 +2,7 @@ import logging
 
 from fastapi import WebSocket
 
+from src.app.ws_events import send_phase_changed, send_route_selected
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
 from src.orchestration.direct_chat import handle_direct_chat
@@ -16,6 +17,8 @@ logger = logging.getLogger("uvicorn.error")
 async def handle_query(
     query: str,
     websocket: WebSocket,
+    run_id: str,
+    session_id: int,
     conversation_history: Conversation,
     model_manager: ModelManager,
 ):
@@ -31,11 +34,27 @@ async def handle_query(
         route_decision.mode,
         route_decision.reason,
     )
+    await send_route_selected(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        mode=route_decision.mode,
+        reason=route_decision.reason,
+    )
 
     if route_decision.mode == "direct_chat":
+        await send_phase_changed(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            phase="responding",
+            detail="Handling request as direct chat.",
+        )
         await handle_direct_chat(
             query=query,
             websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
             conversation_history=conversation_history,
             model=orchestration_models.worker_model,
             model_manager=model_manager,
@@ -43,9 +62,18 @@ async def handle_query(
         return
 
     if route_decision.mode == "fact_check":
+        await send_phase_changed(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            phase="researching",
+            detail="Handling request as fact check.",
+        )
         await handle_fact_check(
             query=query,
             websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
             conversation_history=conversation_history,
             model=orchestration_models.worker_model,
             model_manager=model_manager,
@@ -55,6 +83,8 @@ async def handle_query(
     await handle_task_query(
         query=query,
         websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
         conversation_history=conversation_history,
         model_manager=model_manager,
         orchestration_models=orchestration_models,
