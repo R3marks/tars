@@ -28,6 +28,14 @@
   word-break: break-word;
 }
 
+.message.user .message-inner {
+  width: min(74%, 980px);
+}
+
+.message.tars .message-inner {
+  width: min(82%, 1080px);
+}
+
 .user-surface {
   border: 1px solid rgba(149, 159, 179, 0.16);
   background: rgba(14, 15, 18, 0.96);
@@ -59,6 +67,10 @@
   margin-top: 14px;
 }
 
+.assistant-section + .assistant-section {
+  margin-top: 16px;
+}
+
 .section-title {
   margin: 0 0 8px;
   color: #8395bb;
@@ -88,6 +100,10 @@
 .card-list {
   display: grid;
   gap: 10px;
+}
+
+.card-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .timeline-item.progress {
@@ -182,6 +198,10 @@
   background: rgba(28, 20, 7, 0.54);
 }
 
+.structured-card {
+  min-height: 100%;
+}
+
 .error-message {
   color: #ebcf89;
 }
@@ -220,5 +240,10 @@
 @media (max-width: 900px) {
   .message-inner {
     width: min(100%, 100%);
+  }
+
+  .message.user .message-inner,
+  .message.tars .message-inner {
+    width: 100%;
   }
 }

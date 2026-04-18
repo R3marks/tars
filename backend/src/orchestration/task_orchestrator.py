@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from fastapi import WebSocket
 
-from src.app.ws_events import send_phase_changed, send_response_delta, send_run_completed
+from src.app.ws_events import send_phase_changed, send_result_event, send_response_delta, send_run_completed
 from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
@@ -65,6 +65,17 @@ async def handle_task_query(
         decision.agent_name,
         decision.reason,
     )
+
+    await send_result_event(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        result_type="task_agent_selection",
+        payload={
+            "agent_name": decision.agent_name,
+            "reason": decision.reason,
+        },
+    )
     await send_phase_changed(
         websocket=websocket,
         run_id=run_id,
@@ -74,6 +85,13 @@ async def handle_task_query(
     )
 
     if decision.agent_name == "job_application_agent":
+        await send_phase_changed(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            phase="preparing_job_application_workflow",
+            detail="Starting job application workflow.",
+        )
         workflow_result = await run_job_application_workflow(
             query=query,
             websocket=websocket,
@@ -97,6 +115,13 @@ async def handle_task_query(
         )
         return
 
+    await send_phase_changed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        phase="running_generic_task_agent",
+        detail="Starting generic task agent flow.",
+    )
     await handle_generic_query(
         query=query,
         websocket=websocket,

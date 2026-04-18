@@ -54,19 +54,21 @@ export default function ChatWindow({ runs, activeRun, activeRunExists }) {
 
   return (
     <section className="chat-window" ref={chatWindowRef}>
-      {runs.map((run) => (
-        <ChatMessage key={run.runId || run.localId} run={run} />
-      ))}
+      <div className="chat-content">
+        {runs.map((run) => (
+          <ChatMessage key={run.runId || run.localId} run={run} />
+        ))}
 
-      {activeRunExists ? (
-        <div className="terminal-activity">
-          <span className="terminal-activity-light" />
-          <TarsSpinner size="medium" tone="signal" />
-          <p className="terminal-activity-copy">
-            Working on: {activeRunSummary}
-          </p>
-        </div>
-      ) : null}
+        {activeRunExists ? (
+          <div className="terminal-activity">
+            <span className="terminal-activity-light" />
+            <TarsSpinner size="medium" tone="signal" />
+            <p className="terminal-activity-copy">
+              Working on: {activeRunSummary}
+            </p>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -1,10 +1,10 @@
-import logging
 import json
+import logging
 from pathlib import Path
 
 from fastapi import WebSocket
 
-from src.app.ws_events import send_artifact_event, send_progress_update, send_result_event
+from src.app.ws_events import send_artifact_event, send_phase_changed, send_progress_update, send_result_event
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
 from src.message_structures.message import Message
@@ -30,10 +30,24 @@ async def run_job_application_workflow(
     model_manager: ModelManager,
     orchestration_models: OrchestrationModels,
 ) -> WorkflowRunResult:
+    await send_phase_changed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        phase="parsing_job_request",
+        detail="Parsing the job application request.",
+    )
     await send_status(websocket, run_id, session_id, "Parsing job application request")
     request = parse_job_application_request(query)
     config = get_job_application_skill_package()
 
+    await send_phase_changed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        phase="building_application_context",
+        detail="Collecting source material and shared context.",
+    )
     await send_status(websocket, run_id, session_id, "Building shared application context")
     application_context = await build_application_context(
         request=request,
@@ -43,6 +57,13 @@ async def run_job_application_workflow(
     )
 
     supplementary_outputs = write_supplementary_outputs(application_context)
+    await send_supplementary_artifacts(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        application_context=application_context,
+        supplementary_outputs=supplementary_outputs,
+    )
 
     skill_results = []
 
@@ -92,6 +113,14 @@ async def run_job_application_workflow(
         supplementary_outputs=supplementary_outputs,
     )
     supplementary_outputs.append(review_package_path)
+
+    await send_phase_changed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        phase="reviewing_outputs",
+        detail="Preparing workflow summary and review package.",
+    )
     await send_artifact_event(
         websocket=websocket,
         run_id=run_id,
@@ -101,8 +130,25 @@ async def run_job_application_workflow(
         status="generated",
         label="Review package",
     )
-
-    await send_workflow_summary(websocket, run_id, session_id, skill_results, supplementary_outputs)
+    await send_skill_results(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        skill_results=skill_results,
+    )
+    await send_skill_artifacts(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        skill_results=skill_results,
+    )
+    await send_workflow_summary(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        skill_results=skill_results,
+        supplementary_outputs=supplementary_outputs,
+    )
 
     final_response = build_final_response(skill_results, supplementary_outputs)
     conversation_history.append_message(Message(role="assistant", content=final_response))
@@ -201,6 +247,91 @@ def deduplicate_items(items: list[str]) -> list[str]:
         deduplicated_items.append(item.strip())
 
     return deduplicated_items
+
+
+async def send_supplementary_artifacts(
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+    application_context,
+    supplementary_outputs: list[str],
+):
+    for output_path in supplementary_outputs:
+        artifact_type = infer_supplementary_artifact_type(application_context, output_path)
+        if not artifact_type:
+            continue
+
+        await send_artifact_event(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            artifact_type=artifact_type,
+            path=output_path,
+            status="generated",
+            label=artifact_type.replace("_", " "),
+        )
+
+
+def infer_supplementary_artifact_type(
+    application_context,
+    output_path: str,
+) -> str:
+    output_targets = application_context.request.output_targets
+
+    for artifact_type in ["job_posting", "application_fields"]:
+        output_target = output_targets.get(artifact_type)
+        if output_target is None:
+            continue
+
+        if output_target.path == output_path:
+            return artifact_type
+
+    return ""
+
+
+async def send_skill_results(
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+    skill_results: list[SkillResult],
+):
+    for skill_result in skill_results:
+        await send_result_event(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            result_type="skill_result",
+            payload={
+                "artifact_type": skill_result.artifact_type,
+                "status": skill_result.status,
+                "summary": skill_result.summary,
+                "missing_inputs": skill_result.missing_inputs,
+                "review_notes": skill_result.review_notes,
+                "change_summary": skill_result.change_summary,
+            },
+        )
+
+
+async def send_skill_artifacts(
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+    skill_results: list[SkillResult],
+):
+    for skill_result in skill_results:
+        if not skill_result.output_paths:
+            continue
+
+        for output_path in skill_result.output_paths:
+            await send_artifact_event(
+                websocket=websocket,
+                run_id=run_id,
+                session_id=session_id,
+                artifact_type=skill_result.artifact_type,
+                path=output_path,
+                status=skill_result.status,
+                label=skill_result.artifact_type.replace("_", " "),
+            )
 
 
 async def send_status(

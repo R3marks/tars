@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import WebSocket
 
-from src.app.ws_events import send_progress_update, send_response_delta, send_result_event, send_run_completed
+from src.app.ws_events import send_phase_changed, send_progress_update, send_response_delta, send_result_event, send_run_completed
 from src.agents.criteria_agent import extract_expected_outcomes
 from src.agents.executor_agent import execute_step
 from src.agents.planner_agent import plan_for_outcome
@@ -55,6 +55,13 @@ async def handle_generic_query(
     model_manager: ModelManager,
 ):
     logger.info("Routing query through generic agent flow")
+    await send_phase_changed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        phase="planning",
+        detail="Breaking the task into expected outcomes.",
+    )
 
     context: list[dict[str, Any]] = []
     expected_outcomes = await extract_expected_outcomes(
@@ -207,6 +214,13 @@ async def handle_generic_query(
     """
 
     final_response_parts: list[str] = []
+    await send_phase_changed(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        phase="responding",
+        detail="Summarising task results into the final reply.",
+    )
 
     async for chunk in model_manager.ask_model_stream(
         model,

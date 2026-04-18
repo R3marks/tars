@@ -67,6 +67,7 @@ Do not force object-oriented patterns where they make the flow harder to follow.
 - prefer guard clauses for invalid or empty inputs
 - prefer `continue` over wrapping the rest of a loop in a large conditional
 - prefer helper functions when a block of logic has a distinct meaning
+- if two failure scopes are both useful, separate them into different functions rather than nesting large `try` blocks inline
 
 ### Data modeling
 
