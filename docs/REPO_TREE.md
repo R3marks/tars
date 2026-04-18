@@ -40,6 +40,8 @@ Tars/
 |   |   |   |-- api.py
 |   |   |   |-- main.py
 |   |   |   |-- router.py
+|   |   |   |-- result_payloads.py
+|   |   |   |-- ws_events.py
 |   |   |   |-- __init__.py
 |   |   |-- config/
 |   |   |-- infer/
@@ -114,6 +116,8 @@ Tars/
 |   |-- InputBox/
 |   |   |-- InputBox.css
 |   |   |-- InputBox.jsx
+|   |-- ui/
+|   |   |-- icons.jsx
 |   |-- App.css
 |   |-- App.jsx
 |   |-- index.css

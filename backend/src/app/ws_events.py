@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket
 
+from src.app.result_payloads import JobSearchResultsPayload
 
 PROTOCOL_VERSION = "0.5"
 
@@ -154,6 +155,7 @@ async def send_result_event(
     legacy_type: str = "",
     legacy_message: str = "",
 ):
+    normalized_payload = normalize_payload(payload)
     await send_server_event(
         websocket=websocket,
         event_kind="run.result",
@@ -161,10 +163,25 @@ async def send_result_event(
         session_id=session_id,
         payload={
             "result_type": result_type,
-            **payload,
+            **normalized_payload,
         },
         legacy_type=legacy_type,
         legacy_message=legacy_message,
+    )
+
+
+async def send_job_search_results(
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+    job_search_results: JobSearchResultsPayload,
+):
+    await send_result_event(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        result_type="job_search_results",
+        payload=job_search_results,
     )
 
 
@@ -244,3 +261,10 @@ async def send_run_failed(
         legacy_type="error",
         legacy_message=error,
     )
+
+
+def normalize_payload(payload) -> dict:
+    if hasattr(payload, "to_payload"):
+        return payload.to_payload()
+
+    return payload

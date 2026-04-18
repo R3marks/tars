@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from fastapi import WebSocket
 
+from src.app.result_payloads import TaskAgentSelectionPayload
 from src.app.ws_events import send_phase_changed, send_result_event, send_response_delta, send_run_completed
 from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
@@ -71,10 +72,10 @@ async def handle_task_query(
         run_id=run_id,
         session_id=session_id,
         result_type="task_agent_selection",
-        payload={
-            "agent_name": decision.agent_name,
-            "reason": decision.reason,
-        },
+        payload=TaskAgentSelectionPayload(
+            agent_name=decision.agent_name,
+            reason=decision.reason,
+        ),
     )
     await send_phase_changed(
         websocket=websocket,

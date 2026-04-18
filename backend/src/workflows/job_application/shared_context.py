@@ -1,5 +1,6 @@
 import json
 import re
+from pathlib import Path
 from dataclasses import replace
 
 from src.agents.agent_utils import read_file
@@ -21,7 +22,7 @@ from src.workflows.job_application.models import (
     QuestionItem,
     QuestionsArtifact,
 )
-from src.workflows.job_application.profile_resolver import resolve_application_request_defaults
+from src.workflows.job_application.profile_resolver import build_output_targets, resolve_application_request_defaults
 from src.workflows.job_application.skill import (
     build_candidate_evidence_prompt,
     build_job_requirements_prompt,
@@ -128,6 +129,10 @@ async def build_application_context(
         job_description_text=job_description_text,
         job_requirements=job_requirements,
         job_page=job_page,
+    )
+    resolved_request = refresh_default_output_targets(
+        request=resolved_request,
+        application_research=application_research,
     )
     motivations = parse_motivations(motivations_text, resolved_request.motivations_path)
     questions = parse_questions(questions_text, resolved_request.questions_path)
@@ -262,13 +267,45 @@ def build_application_research(
         company_name=company_name or ("" if job_page is None else job_page.company_name),
         company_address=company_address,
         application_url=request.application_url,
-        role_title="" if job_page is None else job_page.role_title,
+        role_title=infer_role_title(job_description_text) or ("" if job_page is None else job_page.role_title),
         location="" if job_page is None else job_page.location,
         platform="" if job_page is None else job_page.platform,
         company_context=company_context,
         motivation_hooks=extract_motivation_hooks(job_description_text),
         application_fields=[] if job_page is None else job_page.application_fields,
     )
+
+
+def refresh_default_output_targets(
+    request: ApplicationRequest,
+    application_research: ApplicationResearchArtifact,
+) -> ApplicationRequest:
+    if request.has_explicit_output_targets:
+        return request
+
+    company_name = application_research.company_name or request.company_name
+    role_title = application_research.role_title
+    if not company_name and not role_title:
+        return request
+
+    output_root = infer_output_root(request.output_targets)
+    rebuilt_targets = build_output_targets(
+        explicit_targets={},
+        output_root=output_root,
+        company_name=company_name or "application",
+        role_title=role_title or "package",
+    )
+    return replace(request, output_targets=rebuilt_targets)
+
+
+def infer_output_root(output_targets: dict) -> str:
+    for output_target in output_targets.values():
+        output_path = Path(output_target.path)
+        output_folder = output_path.parent
+        output_root = output_folder.parent
+        return str(output_root)
+
+    return str(Path.cwd() / "generated" / "applications")
 
 
 def parse_motivations(
@@ -420,6 +457,23 @@ def infer_company_address(job_description_text: str) -> str:
             continue
 
         return stripped_line.split(":", 1)[1].strip()
+
+    return ""
+
+
+def infer_role_title(job_description_text: str) -> str:
+    for line in job_description_text.splitlines():
+        stripped_line = line.strip()
+        if not stripped_line:
+            continue
+
+        if stripped_line.lower() in {"job description", "the role", "job responsibilities"}:
+            continue
+
+        if len(stripped_line) > 120:
+            continue
+
+        return stripped_line
 
     return ""
 

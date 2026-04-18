@@ -5,6 +5,10 @@ from src.workflows.job_application.models import ApplicationRequest, OutputTarge
 
 BACKTICK_PATH_PATTERN = re.compile(r"`([^`]+)`")
 URL_PATTERN = re.compile(r"https?://\S+")
+KNOWN_COMPANY_ALIASES = {
+    "kestrix": "Kestrix",
+    "kstrix": "Kestrix",
+}
 
 
 def parse_job_application_request(query: str) -> ApplicationRequest:
@@ -17,6 +21,7 @@ def parse_job_application_request(query: str) -> ApplicationRequest:
     return ApplicationRequest(
         query=query,
         requested_artifacts=find_requested_artifacts(lowered_query),
+        has_explicit_output_targets=bool(output_targets),
         job_description_path=find_path(source_paths, ["job", "description"]),
         experience_path=find_path(source_paths, ["experience"]),
         cv_template_path=find_path(source_paths, ["cv_template", ".html"]),
@@ -143,6 +148,12 @@ def find_application_url(query: str) -> str:
 
 
 def find_company_name(query: str) -> str:
+    lowered_query = query.lower()
+
+    for alias, company_name in KNOWN_COMPANY_ALIASES.items():
+        if alias in lowered_query:
+            return company_name
+
     company_match = re.search(r"apply to\s+([A-Z][A-Za-z0-9&.\- ]+)", query)
     if company_match is None:
         return ""

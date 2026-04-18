@@ -7,7 +7,13 @@ from src.workflows.job_application.models import ApplicationRequest, OutputTarge
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 PROJECT_ROOT = BACKEND_ROOT.parent
-CONFIG_ROOT = BACKEND_ROOT / "config"
+CONFIG_ROOT = BACKEND_ROOT / "src" / "config"
+JOB_APPLICATION_INPUT_ROOT = PROJECT_ROOT / "personal" / "inputs" / "job_application"
+
+KNOWN_EXAMPLE_JOB_DESCRIPTION_PATHS = {
+    "kestrix": JOB_APPLICATION_INPUT_ROOT / "job_description.txt",
+    "kstrix": JOB_APPLICATION_INPUT_ROOT / "job_description.txt",
+}
 
 
 def resolve_application_request_defaults(
@@ -18,25 +24,42 @@ def resolve_application_request_defaults(
     profile_config = load_json_file(CONFIG_ROOT / "application_profile.json")
     stub_values = load_json_file(CONFIG_ROOT / "default_application_stub.json")
 
+    job_description_path = choose_job_description_path(
+        query=request.query,
+        explicit_path=request.job_description_path,
+        configured_path=profile_config.get("job_description_path", ""),
+    )
     experience_path = choose_path(
         explicit_path=request.experience_path,
         configured_path=profile_config.get("experience_path", ""),
-        fallback_paths=[PROJECT_ROOT / "experience.txt"],
+        fallback_paths=[
+            JOB_APPLICATION_INPUT_ROOT / "experience.txt",
+            PROJECT_ROOT / "experience.txt",
+        ],
     )
     cv_template_path = choose_path(
         explicit_path=request.cv_template_path,
         configured_path=profile_config.get("cv_template_path", ""),
-        fallback_paths=[PROJECT_ROOT / "cv_template.html"],
+        fallback_paths=[
+            JOB_APPLICATION_INPUT_ROOT / "cv_template.html",
+            PROJECT_ROOT / "cv_template.html",
+        ],
     )
     motivations_path = choose_path(
         explicit_path=request.motivations_path,
         configured_path=profile_config.get("motivations_path", ""),
-        fallback_paths=[PROJECT_ROOT / "motivations.txt"],
+        fallback_paths=[
+            JOB_APPLICATION_INPUT_ROOT / "motivations.txt",
+            PROJECT_ROOT / "motivations.txt",
+        ],
     )
     cover_letter_template_path = choose_path(
         explicit_path=request.cover_letter_template_path,
         configured_path=profile_config.get("cover_letter_template_path", ""),
-        fallback_paths=[PROJECT_ROOT / "cover_letter_template.txt"],
+        fallback_paths=[
+            JOB_APPLICATION_INPUT_ROOT / "cover_letter_template.txt",
+            PROJECT_ROOT / "cover_letter_template.txt",
+        ],
     )
     questions_path = choose_path(
         explicit_path=request.questions_path,
@@ -57,6 +80,7 @@ def resolve_application_request_defaults(
 
     resolved_request = replace(
         request,
+        job_description_path=job_description_path,
         experience_path=experience_path,
         cv_template_path=cv_template_path,
         motivations_path=motivations_path,
@@ -77,6 +101,22 @@ def load_json_file(path: Path) -> dict:
         return {}
 
 
+def choose_job_description_path(
+    query: str,
+    explicit_path: str,
+    configured_path: str,
+) -> str:
+    resolved_path = choose_path(
+        explicit_path=explicit_path,
+        configured_path=configured_path,
+        fallback_paths=[],
+    )
+    if resolved_path:
+        return resolved_path
+
+    return choose_known_example_job_description_path(query)
+
+
 def choose_path(
     explicit_path: str,
     configured_path: str,
@@ -91,6 +131,21 @@ def choose_path(
     for fallback_path in fallback_paths:
         if fallback_path.exists():
             return str(fallback_path)
+
+    return ""
+
+
+def choose_known_example_job_description_path(query: str) -> str:
+    lowered_query = query.lower()
+
+    for alias, example_path in KNOWN_EXAMPLE_JOB_DESCRIPTION_PATHS.items():
+        if alias not in lowered_query:
+            continue
+
+        if not example_path.exists():
+            return ""
+
+        return str(example_path)
 
     return ""
 

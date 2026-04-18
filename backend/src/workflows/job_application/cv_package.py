@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Awaitable, Callable
 
 from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
@@ -100,13 +101,13 @@ reviewTools = [
     }
 ]
 
-
-def run_cv_package(
+async def run_cv_package(
     application_context: ApplicationContext,
     config: SkillPackageConfig,
     worker_model: Model,
     review_model: Model,
     model_manager: ModelManager,
+    progress_callback: Callable[[str, str, dict | None], Awaitable[None]] | None = None,
 ) -> SkillResult:
     missing_inputs = []
     if not application_context.job_description_text:
@@ -129,6 +130,11 @@ def run_cv_package(
             review_notes=["Provide the missing CV inputs and rerun the workflow."],
         )
 
+    await report_progress(
+        progress_callback,
+        "analyzing_cv_template",
+        "CV package: analyzing current template",
+    )
     template_structure = extract_template_structure(application_context.cv_template_text)
     tailoring_plan = build_tailoring_plan(
         template_structure=template_structure,
@@ -137,7 +143,28 @@ def run_cv_package(
         editable_section_limit=config.editable_experience_section_limit,
     )
 
-    cv_section_draft = draft_cv_sections(
+    await report_progress(
+        progress_callback,
+        "drafting_profile_sections",
+        "CV package: drafting profile summary and skills",
+    )
+    profile_draft = draft_profile_sections(
+        query=application_context.request.query,
+        template_structure=template_structure,
+        job_requirements=application_context.job_requirements,
+        candidate_evidence=application_context.candidate_evidence,
+        model=worker_model,
+        model_manager=model_manager,
+    )
+    await report_progress(
+        progress_callback,
+        "rewriting_experience_sections",
+        "CV package: rewriting selected experience sections",
+        {
+            "sections_selected": len(tailoring_plan.sections_to_rewrite),
+        },
+    )
+    drafted_sections = draft_experience_sections(
         query=application_context.request.query,
         template_structure=template_structure,
         job_requirements=application_context.job_requirements,
@@ -145,6 +172,12 @@ def run_cv_package(
         tailoring_plan=tailoring_plan,
         model=worker_model,
         model_manager=model_manager,
+    )
+    cv_section_draft = CvSectionDraft(
+        summary=profile_draft["summary"],
+        technologies=profile_draft["technologies"],
+        expertise=profile_draft["expertise"],
+        experience_sections=drafted_sections,
     )
 
     review = DraftReview(
@@ -154,6 +187,14 @@ def run_cv_package(
 
     iteration_count = 1
     while iteration_count <= config.max_review_iterations:
+        await report_progress(
+            progress_callback,
+            "reviewing_cv_draft",
+            f"CV package: review pass {iteration_count}",
+            {
+                "review_pass": iteration_count,
+            },
+        )
         review = review_cv_draft(
             query=application_context.request.query,
             job_requirements=application_context.job_requirements,
@@ -169,7 +210,25 @@ def run_cv_package(
         if iteration_count >= config.max_review_iterations:
             break
 
-        cv_section_draft = draft_cv_sections(
+        await report_progress(
+            progress_callback,
+            "revising_cv_draft",
+            f"CV package: revising draft after review pass {iteration_count}",
+            {
+                "review_pass": iteration_count,
+            },
+        )
+        profile_draft = draft_profile_sections(
+            query=application_context.request.query,
+            template_structure=template_structure,
+            job_requirements=application_context.job_requirements,
+            candidate_evidence=application_context.candidate_evidence,
+            model=worker_model,
+            model_manager=model_manager,
+            previous_draft=cv_section_draft,
+            review=review,
+        )
+        drafted_sections = draft_experience_sections(
             query=application_context.request.query,
             template_structure=template_structure,
             job_requirements=application_context.job_requirements,
@@ -180,8 +239,19 @@ def run_cv_package(
             previous_draft=cv_section_draft,
             review=review,
         )
+        cv_section_draft = CvSectionDraft(
+            summary=profile_draft["summary"],
+            technologies=profile_draft["technologies"],
+            expertise=profile_draft["expertise"],
+            experience_sections=drafted_sections,
+        )
         iteration_count += 1
 
+    await report_progress(
+        progress_callback,
+        "saving_cv_outputs",
+        "CV package: saving final CV outputs",
+    )
     final_html = apply_cv_draft_to_template(
         application_context.cv_template_text,
         cv_section_draft,
@@ -248,7 +318,7 @@ def build_tailoring_plan(
     )
 
 
-def draft_cv_sections(
+def draft_experience_sections(
     query: str,
     template_structure,
     job_requirements: JobRequirementsArtifact,
@@ -258,18 +328,7 @@ def draft_cv_sections(
     model_manager: ModelManager,
     previous_draft: CvSectionDraft | None = None,
     review: DraftReview | None = None,
-) -> CvSectionDraft:
-    profile_draft = draft_profile_sections(
-        query=query,
-        template_structure=template_structure,
-        job_requirements=job_requirements,
-        candidate_evidence=candidate_evidence,
-        model=model,
-        model_manager=model_manager,
-        previous_draft=previous_draft,
-        review=review,
-    )
-
+) -> list[ExperienceSectionDraft]:
     drafted_sections = []
     for section in template_structure.experience_sections:
         section_plan = find_section_plan(tailoring_plan.sections_to_rewrite, section.identifier)
@@ -299,12 +358,7 @@ def draft_cv_sections(
             ),
         )
 
-    return CvSectionDraft(
-        summary=profile_draft["summary"],
-        technologies=profile_draft["technologies"],
-        expertise=profile_draft["expertise"],
-        experience_sections=drafted_sections,
-    )
+    return drafted_sections
 
 
 def draft_profile_sections(
@@ -314,8 +368,8 @@ def draft_profile_sections(
     candidate_evidence: CandidateEvidenceArtifact,
     model: Model,
     model_manager: ModelManager,
-    previous_draft: CvSectionDraft | None,
-    review: DraftReview | None,
+    previous_draft: CvSectionDraft | None = None,
+    review: DraftReview | None = None,
 ) -> dict:
     candidate_evidence_text = build_candidate_evidence_text(candidate_evidence)
     summary_support_text = " ".join(
@@ -691,3 +745,15 @@ def trim_to_word_limit(text: str, word_limit: int) -> str:
 
 def limit_list(items: list[str], item_limit: int) -> list[str]:
     return items[:item_limit]
+
+
+async def report_progress(
+    progress_callback: Callable[[str, str, dict | None], Awaitable[None]] | None,
+    current_task: str,
+    step_label: str,
+    details: dict | None = None,
+):
+    if progress_callback is None:
+        return
+
+    await progress_callback(current_task, step_label, details)

@@ -102,6 +102,13 @@ Payload:
 - `status`
 - optional structured details relevant to the update
 
+Recommended structured detail fields for long-running skill work:
+
+- `artifact_type`
+- `current_task`
+- `step_label`
+- optional step-specific metadata such as `review_pass` or `sections_selected`
+
 Legacy compatibility:
 
 - `type = "status"`
@@ -116,6 +123,14 @@ Payload:
 - `result_type`
 - result-specific fields
 
+Canonical `result_type` values currently prepared on the backend:
+
+- `task_agent_selection`
+- `skill_result`
+- `workflow_summary`
+- `partial_result`
+- `job_search_results`
+
 ### `run.artifact`
 
 Structured generated output reference.
@@ -126,6 +141,16 @@ Payload:
 - `path`
 - optional `status`
 - optional `label`
+
+Current artifact types emitted or reserved:
+
+- `cv`
+- `cover_letter`
+- `application_answers`
+- `form_field_answers`
+- `review_package`
+- `job_posting`
+- `application_fields`
 
 ### `assistant.response.delta`
 
@@ -194,3 +219,80 @@ Failure lifecycle:
 - phase 1 does not require the frontend to consume every new field yet
 - legacy event fields remain temporarily for compatibility
 - future milestone 1 job-search results should be emitted through `run.result`
+
+## Canonical Result Payloads
+
+## Canonical Progress Payload Shape
+
+Example:
+
+```json
+{
+  "status": "CV package: drafting profile summary and skills",
+  "details": {
+    "artifact_type": "cv",
+    "current_task": "drafting_profile_sections",
+    "step_label": "CV package: drafting profile summary and skills"
+  }
+}
+```
+
+### `task_agent_selection`
+
+```json
+{
+  "result_type": "task_agent_selection",
+  "agent_name": "job_application_agent",
+  "reason": "The request is about preparing a job application."
+}
+```
+
+### `skill_result`
+
+```json
+{
+  "result_type": "skill_result",
+  "artifact_type": "cv",
+  "status": "completed",
+  "summary": "Saved a tailored CV draft.",
+  "missing_inputs": [],
+  "review_notes": ["Draft created."],
+  "change_summary": ["updated the opening summary"]
+}
+```
+
+### `workflow_summary`
+
+```json
+{
+  "result_type": "workflow_summary",
+  "summary": "Workflow summary: generated or updated artifacts",
+  "changed": ["updated the opening summary"],
+  "blocked": [],
+  "needs_review": ["cover_letter"],
+  "output_paths": ["T:/Code/Apps/Tars/generated/applications/example/generated_cv.html"]
+}
+```
+
+### `job_search_results`
+
+```json
+{
+  "result_type": "job_search_results",
+  "query_summary": "Frontend roles in London focused on React and product design systems.",
+  "matches": [
+    {
+      "item_id": "job_001",
+      "title": "Senior Frontend Engineer",
+      "company": "Example Co",
+      "location": "London",
+      "source": "greenhouse",
+      "summary": "React, TypeScript, design-system work.",
+      "url": "https://example.com/jobs/1",
+      "suitability_label": "strong_match"
+    }
+  ],
+  "total_matches": 1,
+  "recommendation_summary": "Strong overlap with frontend product work."
+}
+```

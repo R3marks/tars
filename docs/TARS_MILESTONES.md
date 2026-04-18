@@ -123,8 +123,20 @@ The long-term job domain should cover:
 - tailoring CVs
 - drafting cover letters
 - preparing application answers
+- eventually tracking applications, statuses, and next actions through a lightweight job manager capability
 
 Evaluation work begins here, because milestone 1 is where output quality and workflow usefulness start to matter more than repo structure alone.
+
+Milestone 1 should also preserve room for richer operator visibility without forcing a protocol redesign later.
+
+Important implementation considerations:
+
+- keep progress updates structured enough that the frontend can show a clear current task or active action while a skill package is still running
+- keep change reporting split into simple typed fields such as changed, kept, blocked, and review notes before attempting heavier document-diff UI
+- reserve space for future artifact comparison views where a CV, cover letter, or answers file can be rendered alongside a structured diff preview
+- prefer stable typed payloads from the backend over opaque prose blobs so the frontend can continue to evolve cleanly
+- keep generated artifact paths stable inside a company and role specific folder so reruns overwrite the latest artifact instead of creating timestamped file bloat
+- if a future frontend renderer becomes more dynamic or LLM-assisted, it should still sit on top of explicit backend event contracts rather than replace them
 
 ## Milestone 2
 

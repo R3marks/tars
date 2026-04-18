@@ -16,6 +16,7 @@ class OutputTarget:
 class ApplicationRequest:
     query: str
     requested_artifacts: list[ArtifactType] = field(default_factory=list)
+    has_explicit_output_targets: bool = False
     job_description_path: str = ""
     experience_path: str = ""
     cv_template_path: str = ""

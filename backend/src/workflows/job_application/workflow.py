@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import WebSocket
 
+from src.app.result_payloads import SkillResultPayload, WorkflowSummaryPayload
 from src.app.ws_events import send_artifact_event, send_phase_changed, send_progress_update, send_result_event
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
@@ -68,14 +69,30 @@ async def run_job_application_workflow(
     skill_results = []
 
     if "cv" in application_context.request.requested_artifacts:
-        await send_status(websocket, run_id, session_id, "Running CV package")
+        await send_status(
+            websocket,
+            run_id,
+            session_id,
+            "Running CV package",
+            {
+                "artifact_type": "cv",
+                "current_task": "starting_cv_package",
+                "step_label": "Starting CV package",
+            },
+        )
         skill_results.append(
-            run_cv_package(
+            await run_cv_package(
                 application_context=application_context,
                 config=config,
                 worker_model=orchestration_models.worker_model,
                 review_model=orchestration_models.review_model,
                 model_manager=model_manager,
+                progress_callback=build_progress_callback(
+                    websocket=websocket,
+                    run_id=run_id,
+                    session_id=session_id,
+                    artifact_type="cv",
+                ),
             ),
         )
 
@@ -150,7 +167,11 @@ async def run_job_application_workflow(
         supplementary_outputs=supplementary_outputs,
     )
 
-    final_response = build_final_response(skill_results, supplementary_outputs)
+    final_response = build_final_response(
+        application_context=application_context,
+        skill_results=skill_results,
+        supplementary_outputs=supplementary_outputs,
+    )
     conversation_history.append_message(Message(role="assistant", content=final_response))
 
     output_paths = list(supplementary_outputs)
@@ -182,12 +203,15 @@ def resolve_workflow_status(skill_results: list[SkillResult]) -> str:
 
 
 def build_final_response(
+    application_context,
     skill_results: list[SkillResult],
     supplementary_outputs: list[str],
 ) -> str:
     if not skill_results and not supplementary_outputs:
-        return "No job application artifacts were requested."
+        return "Quiet shift. No job application artifacts were requested."
 
+    company_name = application_context.application_research.company_name or application_context.request.company_name or "the target company"
+    role_title = application_context.application_research.role_title or "the target role"
     completed_artifacts = []
     blocked_artifacts = []
     review_artifacts = []
@@ -205,7 +229,13 @@ def build_final_response(
 
         review_notes.extend(skill_result.review_notes[:2])
 
-    response_parts = []
+    response_parts = [
+        (
+            f"Task orchestrator handed this one to the job application agent. "
+            f"I parsed the request for {company_name} ({role_title}), built the application context, "
+            f"ran the requested package work, and stopped at the review stage so nothing reckless escaped the airlock."
+        ),
+    ]
     if completed_artifacts:
         response_parts.append("Prepared: " + ", ".join(completed_artifacts) + ".")
 
@@ -301,14 +331,14 @@ async def send_skill_results(
             run_id=run_id,
             session_id=session_id,
             result_type="skill_result",
-            payload={
-                "artifact_type": skill_result.artifact_type,
-                "status": skill_result.status,
-                "summary": skill_result.summary,
-                "missing_inputs": skill_result.missing_inputs,
-                "review_notes": skill_result.review_notes,
-                "change_summary": skill_result.change_summary,
-            },
+            payload=SkillResultPayload(
+                artifact_type=skill_result.artifact_type,
+                status=skill_result.status,
+                summary=skill_result.summary,
+                missing_inputs=skill_result.missing_inputs,
+                review_notes=skill_result.review_notes,
+                change_summary=skill_result.change_summary,
+            ),
         )
 
 
@@ -339,13 +369,46 @@ async def send_status(
     run_id: str,
     session_id: int,
     message: str,
+    details: dict | None = None,
 ):
     await send_progress_update(
         websocket=websocket,
         run_id=run_id,
         session_id=session_id,
         status=message,
+        details=details,
     )
+
+
+def build_progress_callback(
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+    artifact_type: str,
+):
+    async def send_progress(
+        current_task: str,
+        step_label: str,
+        details: dict | None = None,
+    ):
+        merged_details = {
+            "artifact_type": artifact_type,
+            "current_task": current_task,
+            "step_label": step_label,
+        }
+
+        if details:
+            merged_details.update(details)
+
+        await send_status(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            message=step_label,
+            details=merged_details,
+        )
+
+    return send_progress
 
 
 async def send_workflow_summary(
@@ -392,13 +455,13 @@ async def send_workflow_summary(
         run_id=run_id,
         session_id=session_id,
         result_type="workflow_summary",
-        payload={
-            "summary": summary_message,
-            "changed": changed,
-            "blocked": blocked,
-            "needs_review": needs_review,
-            "output_paths": outputs + supplementary_outputs,
-        },
+        payload=WorkflowSummaryPayload(
+            summary=summary_message,
+            changed=changed,
+            blocked=blocked,
+            needs_review=needs_review,
+            output_paths=outputs + supplementary_outputs,
+        ),
         legacy_type="workflow_summary",
         legacy_message=summary_message,
     )

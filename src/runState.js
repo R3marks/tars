@@ -102,7 +102,10 @@ function createRunRecord({
 }
 
 function isTerminalStatus(status) {
-  return status === "completed" || status === "failed";
+  return status === "completed"
+    || status === "failed"
+    || status === "blocked"
+    || status === "needs_review";
 }
 
 function findRunIndex(runs, event) {

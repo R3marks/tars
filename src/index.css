@@ -2,6 +2,68 @@
   color-scheme: dark;
   font-family: Bahnschrift, "DIN Alternate", "Trebuchet MS", "Segoe UI", sans-serif;
   background: #121514;
+  --color-page-bg: #121514;
+  --color-text-primary: #edf2fb;
+  --color-text-secondary: #dce5fb;
+  --color-text-muted: #95a6ca;
+  --color-text-tars: #a8c0ff;
+  --color-brand: #c59d42;
+  --color-brand-bright: #e6c981;
+  --color-user-surface: rgba(14, 15, 18, 0.96);
+  --color-user-border: rgba(149, 159, 179, 0.16);
+  --color-tars-surface-top: rgba(6, 8, 14, 0.98);
+  --color-tars-surface-bottom: rgba(4, 7, 13, 0.995);
+  --color-tars-glow: rgba(73, 111, 190, 0.05);
+  --color-tars-border: rgba(78, 109, 191, 0.22);
+  --color-card-surface: rgba(9, 12, 18, 0.9);
+  --color-card-surface-muted: rgba(5, 9, 16, 0.72);
+  --color-card-border: rgba(101, 123, 175, 0.14);
+  --color-path-surface: rgba(2, 4, 10, 0.54);
+  --color-structured-surface: rgba(2, 4, 10, 0.78);
+  --color-structured-text: #aab8d8;
+  --color-divider-soft: rgba(121, 142, 194, 0.12);
+  --color-section-title: #8696ba;
+  --color-section-icon-border: rgba(101, 123, 175, 0.16);
+  --color-section-icon-surface: rgba(16, 21, 33, 0.72);
+  --color-section-icon-text: #a9badf;
+  --color-card-icon: #90a8de;
+  --color-ack-accent: rgba(140, 168, 255, 0.85);
+  --color-result-accent: rgba(106, 133, 219, 0.82);
+  --color-artifact-accent: rgba(197, 157, 66, 0.82);
+  --color-response-accent: rgba(119, 220, 109, 0.8);
+  --color-agent-icon: #a8c0ff;
+  --color-agent-icon-border: rgba(90, 118, 198, 0.22);
+  --color-agent-icon-surface: rgba(24, 33, 67, 0.24);
+  --color-progress: #77dc6d;
+  --color-progress-glow: rgba(119, 220, 109, 0.42);
+  --color-route-surface: rgba(14, 45, 75, 0.34);
+  --color-route-border: rgba(91, 154, 232, 0.24);
+  --color-route-label: #77acd8;
+  --color-route-value: #c7e4ff;
+  --color-phase-surface: rgba(44, 34, 12, 0.3);
+  --color-phase-border: rgba(197, 157, 66, 0.18);
+  --color-phase-label: #8a7852;
+  --color-phase-value: #d0b26a;
+  --color-success: #86e97f;
+  --color-success-border: rgba(119, 220, 109, 0.2);
+  --color-success-surface: rgba(32, 72, 29, 0.28);
+  --color-success-soft: #d7f8d3;
+  --color-warning: #ebcf89;
+  --color-warning-border: rgba(216, 177, 79, 0.2);
+  --color-warning-surface: rgba(68, 48, 14, 0.28);
+  --color-warning-soft: #f1dfb0;
+  --color-danger: #f0a39d;
+  --color-danger-border: rgba(209, 79, 70, 0.22);
+  --color-danger-surface: rgba(69, 20, 20, 0.28);
+  --color-danger-soft: #f2bbb5;
+  --color-info: #a8c0ff;
+  --color-info-border: rgba(90, 118, 198, 0.22);
+  --color-info-surface: rgba(24, 33, 67, 0.3);
+  --color-neutral: #c6d0e6;
+  --color-neutral-border: rgba(121, 142, 194, 0.18);
+  --color-neutral-surface: rgba(28, 35, 55, 0.24);
+  --color-error-surface: rgba(28, 20, 7, 0.54);
+  --color-info-inline-surface: rgba(112, 132, 188, 0.12);
 }
 
 * {
@@ -16,8 +78,8 @@ body,
 }
 
 body {
-  background: #121514;
-  color: #eef2fb;
+  background: var(--color-page-bg);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
