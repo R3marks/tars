@@ -5,10 +5,10 @@ from src.config.ModelConfig import ModelConfig
 
 
 DEFAULT_ROLE_MODEL_NAMES = {
-    "router_model": "QWEN3_4B_INSTRUCT_2507_Q6_K",
-    "planner_model": "QWEN3_4B_INSTRUCT_2507_Q6_K",
-    "worker_model": "QWEN3_4B_INSTRUCT_2507_Q6_K",
-    "review_model": "QWEN3_4B_INSTRUCT_2507_Q6_K",
+    "router_model": "Qwen 3.5 4B Instruct (Q6_K)",
+    "planner_model": "Qwen 3.5 4B Instruct (Q6_K)",
+    "worker_model": "Qwen 3.5 4B Instruct (Q6_K)",
+    "review_model": "Qwen 3.5 4B Instruct (Q6_K)",
 }
 
 
@@ -43,10 +43,11 @@ class ModelRoleSelector:
     def resolve_model(self, role_name: str) -> Model:
         configured_model_name = self.role_model_names.get(role_name)
 
-        if configured_model_name in self.config.models:
-            return self.config.models[configured_model_name]
+        configured_model = self.config.get_model(configured_model_name)
+        if configured_model is not None:
+            return configured_model
 
-        return self._fallback_model()
+        return self.fallback_model()
 
     def fallback_model(self) -> Model:
         if self.config.models:

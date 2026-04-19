@@ -1,18 +1,32 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./ChatWindow.css";
 import ChatMessage from "../ChatMessage/ChatMessage.jsx";
 import TarsSpinner from "../TarsSpinner/TarsSpinner.jsx";
+import {
+  formatElapsedMs,
+  getActivityLabel,
+  getLiveElapsedMs,
+  getReadableModelName,
+} from "../telemetryDisplay.js";
 
 function buildActiveRunSummary(activeRun) {
   if (!activeRun) {
     return "";
   }
 
-  const latestTimelineItem = [...(activeRun.timelineItems || [])].reverse()[0];
+  const activityLabel = getActivityLabel(activeRun.latestTelemetry);
 
-  if (latestTimelineItem?.kind === "progress" && latestTimelineItem.text) {
-    return latestTimelineItem.text;
+  if (activityLabel) {
+    return activityLabel;
   }
+
+  const latestProgressItem = [...(activeRun.progressItems || [])].reverse()[0];
+
+  if (latestProgressItem?.status) {
+    return latestProgressItem.status;
+  }
+
+  const latestTimelineItem = [...(activeRun.timelineItems || [])].reverse()[0];
 
   if (latestTimelineItem?.kind === "phase" && latestTimelineItem.value) {
     return `Phase: ${latestTimelineItem.value}`;
@@ -25,9 +39,35 @@ function buildActiveRunSummary(activeRun) {
   return activeRun.userMessage || "Working.";
 }
 
+function buildActiveRunMeta(activeRun, nowMs) {
+  if (!activeRun?.latestTelemetry) {
+    return [];
+  }
+
+  const items = [];
+  const modelName = getReadableModelName(activeRun.latestTelemetry);
+  const liveElapsedMs = getLiveElapsedMs(activeRun.latestTelemetry, activeRun.createdAt, nowMs);
+  const elapsedLabel = formatElapsedMs(liveElapsedMs || activeRun.latestTelemetry?.timing?.elapsed_ms);
+
+  if (modelName) {
+    items.push(modelName);
+  }
+
+  if (elapsedLabel && elapsedLabel !== "0 ms") {
+    items.push(elapsedLabel);
+  }
+
+  return items;
+}
+
 export default function ChatWindow({ runs, activeRun, activeRunExists }) {
   const chatWindowRef = useRef(null);
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const activeRunSummary = useMemo(() => buildActiveRunSummary(activeRun), [activeRun]);
+  const activeRunMeta = useMemo(
+    () => buildActiveRunMeta(activeRun, currentTimeMs),
+    [activeRun, currentTimeMs],
+  );
 
   useEffect(() => {
     if (!chatWindowRef.current) {
@@ -36,6 +76,19 @@ export default function ChatWindow({ runs, activeRun, activeRunExists }) {
 
     chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
   }, [runs]);
+
+  useEffect(() => {
+    if (!activeRunExists) {
+      return undefined;
+    }
+
+    setCurrentTimeMs(Date.now());
+    const intervalId = window.setInterval(() => {
+      setCurrentTimeMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeRunExists]);
 
   if (runs.length === 0) {
     return (
@@ -63,12 +116,16 @@ export default function ChatWindow({ runs, activeRun, activeRunExists }) {
           <div className="terminal-activity">
             <span className="terminal-activity-light" />
             <TarsSpinner size="medium" tone="signal" />
-            <p className="terminal-activity-copy">
-              Working on: {activeRunSummary}
-            </p>
+            <div className="terminal-activity-copy">
+              <p className="terminal-activity-title">Working on: {activeRunSummary}</p>
+              {activeRunMeta.length > 0 ? (
+                <p className="terminal-activity-meta">{activeRunMeta.join(" | ")}</p>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>
     </section>
   );
 }
+

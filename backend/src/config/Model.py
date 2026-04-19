@@ -12,3 +12,17 @@ class Model():
     fits_in_gpu: bool
     inference_speed: InferenceSpeed
     role: Role
+    display_name: str = ""
+    mmproj_path: str = ""
+    supports_vision: bool = False
+    quantization: str = ""
+    thinking_budget: str = ""
+    provider: str = ""
+
+    def readable_name(self) -> str:
+        if self.display_name:
+            return self.display_name
+
+        raw_name = self.name.replace("_", " ")
+        raw_name = raw_name.replace("-", " ")
+        return " ".join(raw_name.split())

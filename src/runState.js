@@ -94,6 +94,10 @@ function createRunRecord({
     responseText: "",
     results: [],
     artifacts: [],
+    latestTelemetry: null,
+    acknowledgementTelemetry: null,
+    responseTelemetry: null,
+    completionTelemetry: null,
     status,
     error: null,
     createdAt,
@@ -160,11 +164,13 @@ function appendTimelineItem(run, item) {
 }
 
 function applyServerEvent(run, event) {
+  const eventTelemetry = event.payload.telemetry || null;
   const nextRun = {
     ...run,
     runId: event.runId || run.runId,
     sessionId: event.sessionId || run.sessionId,
     updatedAt: event.timestamp,
+    latestTelemetry: eventTelemetry || run.latestTelemetry,
   };
 
   if (event.eventKind === "run.accepted") {
@@ -180,6 +186,7 @@ function applyServerEvent(run, event) {
     return {
       ...nextRun,
       acknowledgementText: `${nextRun.acknowledgementText}${event.payload.text || ""}`,
+      acknowledgementTelemetry: eventTelemetry || nextRun.acknowledgementTelemetry,
       status: "running",
     };
   }
@@ -217,27 +224,24 @@ function applyServerEvent(run, event) {
   if (event.eventKind === "run.progress") {
     const sanitizedDetails = sanitizeStructuredValue(event.payload.details || {}) || {};
 
-    return appendTimelineItem({
+    return {
       ...nextRun,
       progressItems: [
         ...nextRun.progressItems,
         {
           status: event.payload.status || "",
           details: sanitizedDetails,
+          telemetry: eventTelemetry,
           timestamp: event.timestamp,
         },
       ],
       status: "running",
-    }, {
-      kind: "progress",
-      text: event.payload.status || "",
-      details: sanitizedDetails,
-      timestamp: event.timestamp,
-    });
+    };
   }
 
   if (event.eventKind === "run.result") {
-    const sanitizedPayload = sanitizeStructuredValue(event.payload) || {};
+    const { telemetry, ...resultPayload } = event.payload;
+    const sanitizedPayload = sanitizeStructuredValue(resultPayload) || {};
 
     return {
       ...nextRun,
@@ -245,6 +249,7 @@ function applyServerEvent(run, event) {
         ...nextRun.results,
         {
           ...sanitizedPayload,
+          telemetry: telemetry || null,
           timestamp: event.timestamp,
         },
       ],
@@ -253,12 +258,15 @@ function applyServerEvent(run, event) {
   }
 
   if (event.eventKind === "run.artifact") {
+    const { telemetry, ...artifactPayload } = event.payload;
+
     return {
       ...nextRun,
       artifacts: [
         ...nextRun.artifacts,
         {
-          ...event.payload,
+          ...artifactPayload,
+          telemetry: telemetry || null,
           timestamp: event.timestamp,
         },
       ],
@@ -270,6 +278,7 @@ function applyServerEvent(run, event) {
     return {
       ...nextRun,
       responseText: `${nextRun.responseText}${event.payload.text || ""}`,
+      responseTelemetry: eventTelemetry || nextRun.responseTelemetry,
       status: "running",
     };
   }
@@ -277,6 +286,7 @@ function applyServerEvent(run, event) {
   if (event.eventKind === "run.completed") {
     return {
       ...nextRun,
+      completionTelemetry: eventTelemetry || nextRun.completionTelemetry,
       status: event.payload.status || "completed",
     };
   }
@@ -284,6 +294,7 @@ function applyServerEvent(run, event) {
   if (event.eventKind === "run.failed") {
     return {
       ...nextRun,
+      completionTelemetry: eventTelemetry || nextRun.completionTelemetry,
       status: "failed",
       error: {
         message: event.payload.error || "Unknown error",

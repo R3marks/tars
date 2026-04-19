@@ -25,6 +25,8 @@ class LlamaServerProcess:
             "--models-preset", models_config,
             "--no-models-autoload",
             "--models-max", "1",
+            "--metrics",
+            "--slots",
             "--port", str(port),
         ]
 
@@ -37,17 +39,17 @@ class LlamaServerProcess:
         logger.info("🚀 Starting llama-server")
         self.proc = subprocess.Popen(
             self.cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout = subprocess.DEVNULL,
+            stderr = subprocess.DEVNULL,
         )
 
-        self._wait_for_health()
+        self.wait_for_health()
 
-    def _wait_for_health(self, timeout: int = 30):
+    def wait_for_health(self, timeout: int = 30):
         start = time.time()
         while time.time() - start < timeout:
             try:
-                r = requests.get(f"{self.base_url}/health", timeout=1)
+                r = requests.get(f"{self.base_url}/health", timeout = 1)
                 if r.status_code == 200:
                     logger.info("✅ llama-server healthy")
                     return

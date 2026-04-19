@@ -58,9 +58,9 @@ class LlamaCppPythonModelManager(ModelManager):
         self,
         model: Model,
         messages: list[Message],
-        tools = None,
+        tools=None,
         tool_choice: str = "auto",
-        system_prompt: str = None
+        system_prompt: str = None,
     ):
         llm = self.ready_model(model)
 
@@ -70,7 +70,8 @@ class LlamaCppPythonModelManager(ModelManager):
             messages,
             system_prompt=system_prompt,
             tools=tools,
-            tool_choice=tool_choice)
+            tool_choice=tool_choice,
+        )
 
     async def ask_model_stream(
         self,

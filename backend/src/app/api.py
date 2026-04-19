@@ -12,6 +12,7 @@ from src.infer.LlamaCppServerModelManager import LlamaCppServerModelManager
 from src.infer.LlamaServerProcess import LlamaServerProcess
 from src.message_structures.conversation_manager import ConversationManager
 from src.message_structures.message import Message
+from src.telemetry.run_telemetry import RunTelemetryRecorder, reset_current_run_recorder, set_current_run_recorder
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -24,10 +25,10 @@ config = ModelConfig(
 )
 
 server = LlamaServerProcess(
-    llama_server_path="T:/Code/Repos/llama.cpp/build/bin/Release/llama-server.exe",
-    models_dir="T:/Models",
-    models_config="T:/Code/Apps/Tars/model-configs.ini",
-    port=8080,
+    llama_server_path = "T:/Code/Repos/llama.cpp/build/bin/Release/llama-server.exe",
+    models_dir = "T:/Models",
+    models_config = "T:/Code/Apps/Tars/model-configs.ini",
+    port = 8080,
 )
 
 model_manager = LlamaCppServerModelManager(config, server)
@@ -52,6 +53,12 @@ async def handle_socket_message(
 ):
     run_id = str(uuid.uuid4())
     session_id = 1
+    recorder = RunTelemetryRecorder(
+        run_id = run_id,
+        session_id = session_id,
+        user_message = "",
+    )
+    recorder_token = set_current_run_recorder(recorder)
 
     try:
         payload = json.loads(data)
@@ -59,13 +66,15 @@ async def handle_socket_message(
         event_kind = payload.get("event_kind", "")
         payload_body = payload.get("payload", {})
         message = payload_body.get("message") or payload.get("message", "")
+        recorder.session_id = session_id
+        recorder.user_message = message
 
         if not message:
             await send_run_failed(
-                websocket=websocket,
-                run_id=run_id,
-                session_id=session_id,
-                error="No user message was provided.",
+                websocket = websocket,
+                run_id = run_id,
+                session_id = session_id,
+                error = "No user message was provided.",
             )
             return
 
@@ -73,30 +82,30 @@ async def handle_socket_message(
         logger.info("Incoming websocket event kind: %s", event_kind or "legacy.user_message")
 
         conversation_history = add_user_message_to_conversation(
-            session_id=session_id,
-            message=message,
+            session_id = session_id,
+            message = message,
         )
 
         await send_run_accepted(
-            websocket=websocket,
-            run_id=run_id,
-            session_id=session_id,
-            user_message=message,
+            websocket = websocket,
+            run_id = run_id,
+            session_id = session_id,
+            user_message = message,
         )
         await send_phase_changed(
-            websocket=websocket,
-            run_id=run_id,
-            session_id=session_id,
-            phase="acknowledging",
-            detail="Generating TARS acknowledgement.",
+            websocket = websocket,
+            run_id = run_id,
+            session_id = session_id,
+            phase = "acknowledging",
+            detail = "Generating TARS acknowledgement.",
         )
 
         acknowledgement_response = build_acknowledgement_response(message)
         await send_acknowledgement(
-            websocket=websocket,
-            run_id=run_id,
-            session_id=session_id,
-            text=acknowledgement_response,
+            websocket = websocket,
+            run_id = run_id,
+            session_id = session_id,
+            text = acknowledgement_response,
         )
         conversation_history.append_message(
             Message(
@@ -122,6 +131,9 @@ async def handle_socket_message(
             error="TARS hit a backend error while handling that request.",
             detail=str(exc),
         )
+    finally:
+        recorder.persist()
+        reset_current_run_recorder(recorder_token)
 
 
 def add_user_message_to_conversation(
@@ -138,7 +150,7 @@ def add_user_message_to_conversation(
 
 
 def build_acknowledgement_response(message: str) -> str:
-    fast_model = model_manager.config.models["QWEN3_4B_INSTRUCT_2507_Q6_K"]
+    fast_model = resolve_acknowledgement_model()
     acknowledgement_prompt = f"""
     You are a minimal acknowledgment assistant.
     Your sole task is to acknowledge receipt of the user's message — not to answer, explain, or respond to the content.
@@ -156,3 +168,14 @@ def build_acknowledgement_response(message: str) -> str:
         acknowledge_request,
     )
     return acknowledgement_response.strip()
+
+
+def resolve_acknowledgement_model():
+    acknowledgement_model = model_manager.config.get_model("Qwen 3.5 4B Instruct (Q6_K)")
+    if acknowledgement_model is not None:
+        return acknowledgement_model
+
+    if not model_manager.config.models:
+        raise RuntimeError("No models are configured for acknowledgement generation.")
+
+    return next(iter(model_manager.config.models.values()))

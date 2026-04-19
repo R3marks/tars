@@ -1,7 +1,7 @@
 {
     "Models": [
         {
-            "name": "QWEN3_1.7B",
+            "name": "QWEN_3_5_1_7B",
             "path": "qwen3:1.7b",
             "inference_speed": "FAST",
             "role": "GENERAL"

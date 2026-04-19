@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 from fastapi import WebSocket
 
 from src.app.result_payloads import JobSearchResultsPayload
+from src.telemetry.run_telemetry import get_current_run_recorder
 
-PROTOCOL_VERSION = "0.5"
+PROTOCOL_VERSION = "0.6"
 
 
 def build_server_event(
@@ -41,6 +42,16 @@ async def send_server_event(
     legacy_type: str = "",
     legacy_message: str = "",
 ):
+    if not isinstance(payload, dict):
+        payload = normalize_payload(payload)
+    else:
+        payload = dict(payload)
+
+    recorder = get_current_run_recorder()
+    if recorder is not None:
+        recorder.record_event_kind(event_kind)
+        payload["telemetry"] = recorder.build_snapshot(event_kind)
+
     await websocket.send_json(
         build_server_event(
             event_kind=event_kind,
@@ -60,11 +71,11 @@ async def send_run_accepted(
     user_message: str,
 ):
     await send_server_event(
-        websocket=websocket,
-        event_kind="run.accepted",
-        run_id=run_id,
-        session_id=session_id,
-        payload={"user_message": user_message},
+        websocket = websocket,
+        event_kind = "run.accepted",
+        run_id = run_id,
+        session_id = session_id,
+        payload = {"user_message": user_message},
     )
 
 
@@ -75,13 +86,13 @@ async def send_acknowledgement(
     text: str,
 ):
     await send_server_event(
-        websocket=websocket,
-        event_kind="assistant.acknowledgement",
-        run_id=run_id,
-        session_id=session_id,
-        payload={"text": text},
-        legacy_type="ack",
-        legacy_message=text,
+        websocket = websocket,
+        event_kind = "assistant.acknowledgement",
+        run_id = run_id,
+        session_id = session_id,
+        payload = {"text": text},
+        legacy_type = "ack",
+        legacy_message = text,
     )
 
 
@@ -113,6 +124,10 @@ async def send_phase_changed(
     phase: str,
     detail: str = "",
 ):
+    recorder = get_current_run_recorder()
+    if recorder is not None:
+        recorder.note_phase_change(phase=phase, detail=detail)
+
     await send_server_event(
         websocket=websocket,
         event_kind="run.phase",
@@ -132,6 +147,10 @@ async def send_progress_update(
     status: str,
     details: dict | None = None,
 ):
+    recorder = get_current_run_recorder()
+    if recorder is not None:
+        recorder.note_progress(status=status, details=details)
+
     await send_server_event(
         websocket=websocket,
         event_kind="run.progress",
@@ -156,6 +175,10 @@ async def send_result_event(
     legacy_message: str = "",
 ):
     normalized_payload = normalize_payload(payload)
+    recorder = get_current_run_recorder()
+    if recorder is not None:
+        recorder.note_result(result_type=result_type, payload=normalized_payload)
+
     await send_server_event(
         websocket=websocket,
         event_kind="run.result",
@@ -194,6 +217,15 @@ async def send_artifact_event(
     status: str = "",
     label: str = "",
 ):
+    recorder = get_current_run_recorder()
+    if recorder is not None:
+        recorder.note_artifact(
+            artifact_type=artifact_type,
+            path=path,
+            status=status,
+            label=label,
+        )
+
     await send_server_event(
         websocket=websocket,
         event_kind="run.artifact",
@@ -231,15 +263,23 @@ async def send_run_completed(
     session_id: int,
     status: str = "completed",
 ):
-    await send_server_event(
-        websocket=websocket,
-        event_kind="run.completed",
-        run_id=run_id,
-        session_id=session_id,
-        payload={"status": status},
-        legacy_type="final",
-        legacy_message="[DONE]",
-    )
+    recorder = get_current_run_recorder()
+    if recorder is not None:
+        recorder.mark_finished(status=status)
+
+    try:
+        await send_server_event(
+            websocket=websocket,
+            event_kind="run.completed",
+            run_id=run_id,
+            session_id=session_id,
+            payload={"status": status},
+            legacy_type="final",
+            legacy_message="[DONE]",
+        )
+    finally:
+        if recorder is not None:
+            recorder.persist()
 
 
 async def send_run_failed(
@@ -249,18 +289,26 @@ async def send_run_failed(
     error: str,
     detail: str = "",
 ):
-    await send_server_event(
-        websocket=websocket,
-        event_kind="run.failed",
-        run_id=run_id,
-        session_id=session_id,
-        payload={
-            "error": error,
-            "detail": detail,
-        },
-        legacy_type="error",
-        legacy_message=error,
-    )
+    recorder = get_current_run_recorder()
+    if recorder is not None:
+        recorder.mark_finished(status="failed", final_message=error)
+
+    try:
+        await send_server_event(
+            websocket=websocket,
+            event_kind="run.failed",
+            run_id=run_id,
+            session_id=session_id,
+            payload={
+                "error": error,
+                "detail": detail,
+            },
+            legacy_type="error",
+            legacy_message=error,
+        )
+    finally:
+        if recorder is not None:
+            recorder.persist()
 
 
 def normalize_payload(payload) -> dict:

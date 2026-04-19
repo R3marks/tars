@@ -4,6 +4,12 @@ import remarkGfm from "remark-gfm";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
 import { AppIcon } from "../ui/icons.jsx";
+import {
+  formatElapsedMs,
+  getActivityLabel,
+  getReadableModelName,
+  getTelemetryItems,
+} from "../telemetryDisplay.js";
 import "./ChatMessage.css";
 
 function SectionTitle({ icon, children }) {
@@ -133,6 +139,91 @@ function normalizeArtifactStatus(status = "", path = "") {
   return status || "generated";
 }
 
+function TelemetryMeta({ telemetry, includeTokensPerSecond = false, includeOutputTokens = false }) {
+  const items = getTelemetryItems(telemetry, {
+    includeTokensPerSecond,
+    includeOutputTokens,
+  });
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <dl className="telemetry-meta">
+      {items.map((item) => (
+        <div key={`${item.label}-${item.value}`} className="telemetry-meta-item">
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function RunSummary({ run }) {
+  const summaryTelemetry = run.completionTelemetry || run.latestTelemetry;
+  const terminalRun = run.status === "completed"
+    || run.status === "failed"
+    || run.status === "blocked"
+    || run.status === "needs_review";
+
+  if (!summaryTelemetry || !terminalRun) {
+    return null;
+  }
+
+  const summaryItems = [];
+  const elapsedLabel = formatElapsedMs(summaryTelemetry?.run?.elapsed_ms || summaryTelemetry?.timing?.elapsed_ms);
+  const modelName = getReadableModelName(summaryTelemetry);
+  const activityLabel = getActivityLabel(summaryTelemetry);
+  const resultsCount = summaryTelemetry?.counts?.results || 0;
+  const artifactsCount = summaryTelemetry?.counts?.artifacts || 0;
+  const invocationCount = summaryTelemetry?.counts?.model_invocations || 0;
+
+  if (elapsedLabel && elapsedLabel !== "0 ms") {
+    summaryItems.push({ label: "Run", value: elapsedLabel });
+  }
+
+  if (modelName) {
+    summaryItems.push({ label: "Model", value: modelName });
+  }
+
+  if (invocationCount > 0) {
+    summaryItems.push({ label: "Calls", value: String(invocationCount) });
+  }
+
+  if (resultsCount > 0) {
+    summaryItems.push({ label: "Results", value: String(resultsCount) });
+  }
+
+  if (artifactsCount > 0) {
+    summaryItems.push({ label: "Artifacts", value: String(artifactsCount) });
+  }
+
+  if (summaryItems.length === 0 && !activityLabel) {
+    return null;
+  }
+
+  return (
+    <section className="assistant-section assistant-section-shell telemetry-shell">
+      <SectionTitle icon="operator">Run Summary</SectionTitle>
+      <div className="run-summary">
+        {activityLabel ? <p className="run-summary-activity">{activityLabel}</p> : null}
+        {summaryItems.length > 0 ? (
+          <div className="summary-chip-list">
+            {summaryItems.map((item) => (
+              <div key={`${item.label}-${item.value}`} className="summary-chip">
+                <span className="summary-chip-label">{item.label}</span>
+                <span className="summary-chip-value">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function TimelineList({ timelineItems }) {
   const operatorItems = timelineItems.filter((item) => item.kind !== "progress");
 
@@ -203,6 +294,7 @@ function SkillResultCard({ result }) {
       <StringList title="Changes" items={result.change_summary} tone="success" />
       <StringList title="Needs Input" items={result.missing_inputs} tone="danger" />
       <StringList title="Review Notes" items={result.review_notes} tone="warning" />
+      <TelemetryMeta telemetry={result.telemetry} />
     </article>
   );
 }
@@ -222,6 +314,7 @@ function WorkflowSummaryCard({ result }) {
       <StringList title="Blocked" items={result.blocked} tone="danger" />
       <StringList title="Needs Review" items={result.needs_review} tone="warning" />
       <PathList title="Output Paths" paths={result.output_paths} />
+      <TelemetryMeta telemetry={result.telemetry} />
     </article>
   );
 }
@@ -291,6 +384,8 @@ function JobSearchResultCard({ result }) {
       ) : (
         <p className="card-supporting-copy">No structured job matches were returned for this run.</p>
       )}
+
+      <TelemetryMeta telemetry={result.telemetry} />
     </article>
   );
 }
@@ -376,6 +471,7 @@ function ArtifactCard({ artifact }) {
           <p className="artifact-path">{artifact.path}</p>
         </div>
       ) : null}
+      <TelemetryMeta telemetry={artifact.telemetry} />
     </article>
   );
 }
@@ -419,6 +515,11 @@ export default React.memo(function ChatMessage({ run }) {
             <section className="assistant-section acknowledgement-strip assistant-section-shell acknowledgement-shell">
               <SectionTitle icon="acknowledgement">Acknowledgement</SectionTitle>
               <p className="acknowledgement-copy">{run.acknowledgementText}</p>
+              <TelemetryMeta
+                telemetry={run.acknowledgementTelemetry}
+                includeTokensPerSecond
+                includeOutputTokens
+              />
             </section>
           ) : null}
 
@@ -432,8 +533,15 @@ export default React.memo(function ChatMessage({ run }) {
               <MarkdownBlock isFinal={shouldUseMarkdownFeatures}>
                 {run.responseText}
               </MarkdownBlock>
+              <TelemetryMeta
+                telemetry={run.completionTelemetry || run.responseTelemetry}
+                includeTokensPerSecond
+                includeOutputTokens
+              />
             </section>
           ) : null}
+
+          <RunSummary run={run} />
 
           {run.error ? (
             <section className="assistant-section error-state assistant-section-shell failure-shell">

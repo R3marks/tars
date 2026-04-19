@@ -1,10 +1,13 @@
 import json
+import time
 import requests
 import logging
 from typing import List
+from datetime import datetime, timezone
 
 from src.infer.InferInterface import InferInterface
 from src.message_structures.message import Message
+from src.telemetry.run_telemetry import get_current_run_recorder
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -25,36 +28,61 @@ class LlamaCppServerInfer(InferInterface):
         llm_unused,
         messages: list[Message],
         system_prompt: str = None,
-        tools=None,
+        tools = None,
         tool_choice: str = "auto",
     ) -> str:
-
-        payload = self._build_payload(
-            model.id,
+        payload = self.build_payload(
+            model,
             messages,
             tools,
             system_prompt,
-            tool_choice=tool_choice,
+            tool_choice = tool_choice,
         )
 
-        r = requests.post(
-            f"{self.base_url}/v1/chat/completions",
-            json=payload,
-            timeout=300,
-        )
+        recorder = get_current_run_recorder()
+        invocation_index = -1
+        if recorder is not None:
+            invocation_index = recorder.start_model_invocation(model = model, kind = "chat_completion")
 
-        self._raise_for_status_with_context(r, payload)
+        started_at = time.perf_counter()
+        try:
+            r = requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                json = payload,
+                timeout = 300,
+            )
 
-        data = r.json()
-        choice = data["choices"][0]
+            self.raise_for_status_with_context(r, payload)
 
-        if choice["finish_reason"] == "tool_calls":
-            return choice["message"]["tool_calls"]
+            data = r.json()
+            choice = data["choices"][0]
+            usage = self.extract_usage(data)
 
-        if choice["finish_reason"] == "length":
-            logger.warning("⚠️ Message truncated")
+            if recorder is not None and invocation_index >= 0:
+                recorder.finish_model_invocation(
+                    invocation_index,
+                    usage = usage,
+                )
 
-        return choice["message"]["content"]
+            if choice["finish_reason"] == "tool_calls":
+                return choice["message"]["tool_calls"]
+
+            if choice["finish_reason"] == "length":
+                logger.warning("⚠️ Message truncated")
+
+            elapsed_seconds = max(0.001, time.perf_counter() - started_at)
+            if usage.get("completion_tokens"):
+                logger.info("llama-server responded at %.2f tokens/s", usage["completion_tokens"] / elapsed_seconds)
+
+            return choice["message"]["content"]
+        except Exception:
+            if recorder is not None and invocation_index >= 0:
+                recorder.finish_model_invocation(
+                    invocation_index,
+                    status = "failed",
+                )
+
+            raise
 
     # =========================
     # STREAMING
@@ -66,46 +94,79 @@ class LlamaCppServerInfer(InferInterface):
         messages: list[Message],
         system_prompt: str = None,
     ):
-        payload = self._build_payload(
-            model=model.id,
-            messages=messages,
-            tools=None,
-            system_prompt=system_prompt,
-            stream=True,
+        payload = self.build_payload(
+            model = model,
+            messages = messages,
+            tools = None,
+            system_prompt = system_prompt,
+            stream = True,
+        )
+        logger.info(
+            "llama-server streaming request: model=%s stream=%s message_count=%s",
+            payload.get("model"),
+            payload.get("stream", False),
+            len(payload.get("messages", [])),
         )
 
-        with requests.post(
-            f"{self.base_url}/v1/chat/completions",
-            json=payload,
-            stream=True,
-            timeout=300,
-        ) as r:
-            self._raise_for_status_with_context(r, payload)
+        recorder = get_current_run_recorder()
+        invocation_index = -1
+        if recorder is not None:
+            invocation_index = recorder.start_model_invocation(model = model, kind = "stream_chat_completion")
 
-            for raw in r.iter_lines(decode_unicode=False):
-                if not raw:
-                    continue
+        first_token_at = None
+        usage = {}
+        terminal_status = "completed"
 
-                try:
-                    line = raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    continue
+        try:
+            with requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                json = payload,
+                stream = True,
+                timeout = 300,
+            ) as r:
+                self.raise_for_status_with_context(r, payload)
 
-                if not line.startswith("data:"):
-                    continue
+                for raw in r.iter_lines(decode_unicode=False):
+                    if not raw:
+                        continue
 
-                data = line[5:].strip()
-                if data == "[DONE]":
-                    break
+                    try:
+                        line = raw.decode("utf-8")
+                    except UnicodeDecodeError:
+                        continue
 
-                try:
-                    chunk = json.loads(data)
-                except json.JSONDecodeError:
-                    continue
+                    if not line.startswith("data:"):
+                        continue
 
-                delta = chunk["choices"][0]["delta"].get("content")
-                if delta:
-                    yield {"type": "chunk", "content": delta}
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+
+                    delta = chunk["choices"][0]["delta"].get("content")
+                    if delta:
+                        if first_token_at is None:
+                            first_token_at = datetime.now(timezone.utc)
+
+                        yield {"type": "chunk", "content": delta}
+
+                    usage = self.extract_usage(chunk) or usage
+
+        except Exception:
+            terminal_status = "failed"
+            raise
+        finally:
+            if recorder is not None and invocation_index >= 0:
+                recorder.finish_model_invocation(
+                    invocation_index,
+                    usage = usage,
+                    first_token_at = first_token_at,
+                    status = terminal_status,
+                )
 
     # =========================
     # CHUNKED INFERENCE
@@ -118,7 +179,7 @@ class LlamaCppServerInfer(InferInterface):
         messages: list[Message],
         user_goal: str = None,
         system_prompt: str = None,
-        tools=None,
+        tools = None,
         tool_choice: str = "auto",
     ) -> str:
         """
@@ -139,7 +200,7 @@ class LlamaCppServerInfer(InferInterface):
 
         logger.info(f"📄 Total context length: {len(long_context)} characters")
 
-        chunks = self._split_into_chunks(long_context)
+        chunks = self.split_into_chunks(long_context)
         logger.info(f"📦 Split into {len(chunks)} chunks")
 
         memory_summary = ""
@@ -159,12 +220,12 @@ class LlamaCppServerInfer(InferInterface):
             logger.info(f"🧩 Processing chunk {idx + 1}/{len(chunks)}")
 
             response = self.ask_model(
-                model=model,
-                llm_unused=None,
-                messages=step_messages,
-                system_prompt=None,
-                tools=None,
-                tool_choice="auto",
+                model = model,
+                llm_unused = None,
+                messages = step_messages,
+                system_prompt = None,
+                tools = None,
+                tool_choice = "auto",
             )
 
             if "</think>" in response:
@@ -179,7 +240,7 @@ class LlamaCppServerInfer(InferInterface):
     # HELPERS
     # =========================
 
-    def _split_into_chunks(self, text: str) -> List[str]:
+    def split_into_chunks(self, text: str) -> List[str]:
         """
         Split text into roughly equal character-sized chunks.
         """
@@ -204,7 +265,7 @@ class LlamaCppServerInfer(InferInterface):
 
         return chunks
 
-    def _build_payload(
+    def build_payload(
         self,
         model,
         messages: list[Message],
@@ -221,11 +282,14 @@ class LlamaCppServerInfer(InferInterface):
         msgs.extend(m.model_dump() for m in messages)
 
         payload = {
-            "model": model,
+            "model": self.resolve_server_model_identifier(model),
             "messages": msgs,
             "temperature": 0.3,
             "stream": stream,
         }
+
+        if self.should_disable_thinking(model):
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
 
         if tools:
             payload["tools"] = tools
@@ -233,7 +297,28 @@ class LlamaCppServerInfer(InferInterface):
 
         return payload
 
-    def _raise_for_status_with_context(self, response, payload):
+    def extract_usage(self, response_data: dict) -> dict:
+        usage = response_data.get("usage")
+        if not isinstance(usage, dict):
+            return {}
+
+        return {
+            "prompt_tokens": usage.get("prompt_tokens") or usage.get("input_tokens") or 0,
+            "completion_tokens": usage.get("completion_tokens") or usage.get("output_tokens") or 0,
+            "total_tokens": usage.get("total_tokens") or 0,
+            "prompt_eval_ms": usage.get("prompt_eval_ms") or 0,
+            "decode_ms": usage.get("decode_ms") or 0,
+            "queue_ms": usage.get("queue_ms") or 0,
+        }
+
+    def resolve_server_model_identifier(self, model) -> str:
+        return getattr(model, "name", "") or getattr(model, "id", "")
+
+    def should_disable_thinking(self, model) -> bool:
+        thinking_budget = str(getattr(model, "thinking_budget", "") or "").strip().lower()
+        return thinking_budget in {"0", "zero", "off", "disabled", "false"}
+
+    def raise_for_status_with_context(self, response, payload):
         if response.ok:
             return
 
@@ -244,14 +329,14 @@ class LlamaCppServerInfer(InferInterface):
             "has_tools": "tools" in payload,
             "tool_choice": payload.get("tool_choice"),
             "message_count": len(payload.get("messages", [])),
-            "last_message_preview": self._last_message_preview(payload),
+            "last_message_preview": self.last_message_preview(payload),
         }
 
         logger.error("llama-server request failed: %s", payload_summary)
         logger.error("llama-server response body: %s", response_text[:2000])
         response.raise_for_status()
 
-    def _last_message_preview(self, payload) -> str:
+    def last_message_preview(self, payload) -> str:
         messages = payload.get("messages", [])
         if not messages:
             return ""

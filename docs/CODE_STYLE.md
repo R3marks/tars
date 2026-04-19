@@ -59,8 +59,14 @@ Do not force object-oriented patterns where they make the flow harder to follow.
 
 - use clear full names for variables, parameters, methods, classes, and files
 - avoid underscored "private-style" method naming unless there is a strong reason
+- prefer `method_name()` over `_method_name()`
 - prefer names like `build_application_context` over compressed or vague alternatives
 - use singular nouns for single values and plural nouns for collections
+
+### Spacing
+
+- prefer spaced assignment style such as `value = other_value`
+- apply the same spacing preference to default parameters and keyword arguments when writing Python
 
 ### Control flow
 

@@ -1,6 +1,6 @@
 # WebSocket Event Contract
 
-This document locks phase 1 of milestone 0.5.
+This document locks phase 1 of milestone 0.6.
 
 It defines the shared event envelope and lifecycle semantics for communication between the frontend and backend.
 
@@ -23,6 +23,8 @@ Every backend event should carry:
 - `session_id`
 - `ts`
 - `payload`
+
+Each payload may also include a structured `telemetry` object.
 
 Legacy compatibility fields may also be present:
 
@@ -56,6 +58,7 @@ The backend has accepted the request and assigned a run id.
 Payload:
 
 - `user_message`
+- optional `telemetry`
 
 ### `assistant.acknowledgement`
 
@@ -64,6 +67,7 @@ The first visible TARS acknowledgement.
 Payload:
 
 - `text`
+- optional `telemetry`
 
 Legacy compatibility:
 
@@ -78,6 +82,7 @@ Payload:
 
 - `mode`
 - `reason`
+- optional `telemetry`
 
 Legacy compatibility:
 
@@ -92,6 +97,7 @@ Payload:
 
 - `phase`
 - `detail`
+- optional `telemetry`
 
 ### `run.progress`
 
@@ -101,6 +107,7 @@ Payload:
 
 - `status`
 - optional structured details relevant to the update
+- optional `telemetry`
 
 Recommended structured detail fields for long-running skill work:
 
@@ -122,6 +129,7 @@ Payload:
 
 - `result_type`
 - result-specific fields
+- optional `telemetry`
 
 Canonical `result_type` values currently prepared on the backend:
 
@@ -141,6 +149,7 @@ Payload:
 - `path`
 - optional `status`
 - optional `label`
+- optional `telemetry`
 
 Current artifact types emitted or reserved:
 
@@ -159,6 +168,7 @@ Streaming or final assistant conversational output.
 Payload:
 
 - `text`
+- optional `telemetry`
 
 Legacy compatibility:
 
@@ -172,6 +182,7 @@ The run finished successfully.
 Payload:
 
 - `status`
+- optional `telemetry`
 
 Legacy compatibility:
 
@@ -186,6 +197,7 @@ Payload:
 
 - `error`
 - optional `detail`
+- optional `telemetry`
 
 Legacy compatibility:
 
@@ -218,6 +230,7 @@ Failure lifecycle:
 - phase 1 locks the envelope and event kinds
 - phase 1 does not require the frontend to consume every new field yet
 - legacy event fields remain temporarily for compatibility
+- telemetry is informational and should be treated as optional by the frontend
 - future milestone 1 job-search results should be emitted through `run.result`
 
 ## Canonical Result Payloads

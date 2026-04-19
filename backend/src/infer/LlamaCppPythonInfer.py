@@ -27,9 +27,8 @@ class LlamaCppPythonInfer(InferInterface):
             messages: list[Message],
             system_prompt: str = None,
             tools: list = None,  # Optional tools param
-            tool_choice: str = "auto"
+            tool_choice: str = "auto",
             ) -> str:
-        
         if system_prompt:
             messages.insert(0, Message(role="system", content=system_prompt))
 
@@ -145,7 +144,6 @@ class LlamaCppPythonInfer(InferInterface):
         messages: list[Message],
         system_prompt: str = None,
         ):
-
         if system_prompt:
             messages.insert(0, Message(role="system", content=system_prompt))
 
@@ -209,4 +207,5 @@ class LlamaCppPythonInfer(InferInterface):
             else:
                 chunked_messages.append(m)
         return chunked_messages
+
 
