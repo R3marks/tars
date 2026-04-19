@@ -226,12 +226,15 @@ async def handle_generic_query(
         model,
         [Message(role="user", content=summarise_step_prompt)],
     ):
-        final_response_parts.append(chunk["content"])
+        if chunk.get("content"):
+            final_response_parts.append(chunk["content"])
+
         await send_response_delta(
             websocket=websocket,
             run_id=run_id,
             session_id=session_id,
-            text=chunk["content"],
+            text=chunk.get("content", ""),
+            reasoning_text=chunk.get("reasoning_content", ""),
         )
 
     final_response = "".join(final_response_parts).strip()

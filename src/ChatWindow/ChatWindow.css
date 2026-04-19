@@ -69,6 +69,42 @@
   text-transform: uppercase;
 }
 
+.terminal-reasoning {
+  margin-top: 10px;
+  border: 1px solid rgba(121, 190, 114, 0.16);
+  border-radius: 14px;
+  background: rgba(7, 14, 8, 0.66);
+}
+
+.terminal-reasoning-summary {
+  cursor: pointer;
+  padding: 9px 12px;
+  color: #d5ebd1;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  list-style: none;
+}
+
+.terminal-reasoning-summary::-webkit-details-marker {
+  display: none;
+}
+
+.terminal-reasoning-content {
+  max-height: 160px;
+  overflow: auto;
+  padding: 0 12px 12px;
+}
+
+.terminal-reasoning-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #bcdfb4;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
 .empty-state {
   max-width: 620px;
   padding: 24px 28px;

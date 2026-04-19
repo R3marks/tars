@@ -56,16 +56,19 @@ class LlamaCppServerInfer(InferInterface):
 
             data = r.json()
             choice = data["choices"][0]
+            message_payload = choice.get("message", {})
             usage = self.extract_usage(data)
+            reasoning_content = message_payload.get("reasoning_content") or ""
 
             if recorder is not None and invocation_index >= 0:
                 recorder.finish_model_invocation(
                     invocation_index,
                     usage = usage,
+                    reasoning_content = reasoning_content,
                 )
 
             if choice["finish_reason"] == "tool_calls":
-                return choice["message"]["tool_calls"]
+                return message_payload["tool_calls"]
 
             if choice["finish_reason"] == "length":
                 logger.warning("⚠️ Message truncated")
@@ -74,11 +77,12 @@ class LlamaCppServerInfer(InferInterface):
             if usage.get("completion_tokens"):
                 logger.info("llama-server responded at %.2f tokens/s", usage["completion_tokens"] / elapsed_seconds)
 
-            return choice["message"]["content"]
+            return message_payload.get("content") or ""
         except Exception:
             if recorder is not None and invocation_index >= 0:
                 recorder.finish_model_invocation(
                     invocation_index,
+                    reasoning_content = "",
                     status = "failed",
                 )
 
@@ -115,6 +119,7 @@ class LlamaCppServerInfer(InferInterface):
 
         first_token_at = None
         usage = {}
+        reasoning_parts: list[str] = []
         terminal_status = "completed"
 
         try:
@@ -147,7 +152,13 @@ class LlamaCppServerInfer(InferInterface):
                     except json.JSONDecodeError:
                         continue
 
-                    delta = chunk["choices"][0]["delta"].get("content")
+                    delta_payload = chunk["choices"][0]["delta"]
+                    reasoning_delta = delta_payload.get("reasoning_content")
+                    if reasoning_delta:
+                        reasoning_parts.append(reasoning_delta)
+                        yield {"type": "reasoning", "reasoning_content": reasoning_delta}
+
+                    delta = delta_payload.get("content")
                     if delta:
                         if first_token_at is None:
                             first_token_at = datetime.now(timezone.utc)
@@ -165,6 +176,7 @@ class LlamaCppServerInfer(InferInterface):
                     invocation_index,
                     usage = usage,
                     first_token_at = first_token_at,
+                    reasoning_content = "".join(reasoning_parts).strip(),
                     status = terminal_status,
                 )
 
@@ -284,12 +296,14 @@ class LlamaCppServerInfer(InferInterface):
         payload = {
             "model": self.resolve_server_model_identifier(model),
             "messages": msgs,
-            "temperature": 0.3,
             "stream": stream,
         }
 
-        if self.should_disable_thinking(model):
+        thinking_budget = self.resolve_thinking_budget(model)
+        if thinking_budget == 0:
             payload["chat_template_kwargs"] = {"enable_thinking": False}
+        if thinking_budget and thinking_budget > 0:
+            payload["thinking_budget_tokens"] = thinking_budget
 
         if tools:
             payload["tools"] = tools
@@ -314,9 +328,22 @@ class LlamaCppServerInfer(InferInterface):
     def resolve_server_model_identifier(self, model) -> str:
         return getattr(model, "name", "") or getattr(model, "id", "")
 
-    def should_disable_thinking(self, model) -> bool:
-        thinking_budget = str(getattr(model, "thinking_budget", "") or "").strip().lower()
-        return thinking_budget in {"0", "zero", "off", "disabled", "false"}
+    def resolve_thinking_budget(self, model) -> int | None:
+        raw_thinking_budget = str(getattr(model, "thinking_budget", "") or "").strip().lower()
+        if not raw_thinking_budget:
+            return None
+
+        if raw_thinking_budget in {"0", "zero", "off", "disabled", "false"}:
+            return 0
+
+        if raw_thinking_budget in {"supported", "auto"}:
+            return None
+
+        try:
+            return int(raw_thinking_budget)
+        except ValueError:
+            logger.warning("Could not parse thinking budget for model %s: %s", getattr(model, "name", ""), raw_thinking_budget)
+            return None
 
     def raise_for_status_with_context(self, response, payload):
         if response.ok:

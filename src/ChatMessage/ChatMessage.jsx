@@ -161,6 +161,27 @@ function TelemetryMeta({ telemetry, includeTokensPerSecond = false, includeOutpu
   );
 }
 
+function getTelemetryReasoningContent(telemetry) {
+  return telemetry?.invocation?.reasoning_content || "";
+}
+
+function ReasoningPanel({ title = "Reasoning", content = "" }) {
+  const trimmedContent = (content || "").trim();
+
+  if (!trimmedContent) {
+    return null;
+  }
+
+  return (
+    <details className="reasoning-panel">
+      <summary className="reasoning-summary">{title}</summary>
+      <div className="reasoning-content">
+        <pre className="reasoning-pre">{trimmedContent}</pre>
+      </div>
+    </details>
+  );
+}
+
 function RunSummary({ run }) {
   const summaryTelemetry = run.completionTelemetry || run.latestTelemetry;
   const terminalRun = run.status === "completed"
@@ -294,6 +315,7 @@ function SkillResultCard({ result }) {
       <StringList title="Changes" items={result.change_summary} tone="success" />
       <StringList title="Needs Input" items={result.missing_inputs} tone="danger" />
       <StringList title="Review Notes" items={result.review_notes} tone="warning" />
+      <ReasoningPanel content={getTelemetryReasoningContent(result.telemetry)} />
       <TelemetryMeta telemetry={result.telemetry} />
     </article>
   );
@@ -314,6 +336,7 @@ function WorkflowSummaryCard({ result }) {
       <StringList title="Blocked" items={result.blocked} tone="danger" />
       <StringList title="Needs Review" items={result.needs_review} tone="warning" />
       <PathList title="Output Paths" paths={result.output_paths} />
+      <ReasoningPanel content={getTelemetryReasoningContent(result.telemetry)} />
       <TelemetryMeta telemetry={result.telemetry} />
     </article>
   );
@@ -385,6 +408,7 @@ function JobSearchResultCard({ result }) {
         <p className="card-supporting-copy">No structured job matches were returned for this run.</p>
       )}
 
+      <ReasoningPanel content={getTelemetryReasoningContent(result.telemetry)} />
       <TelemetryMeta telemetry={result.telemetry} />
     </article>
   );
@@ -471,6 +495,7 @@ function ArtifactCard({ artifact }) {
           <p className="artifact-path">{artifact.path}</p>
         </div>
       ) : null}
+      <ReasoningPanel content={getTelemetryReasoningContent(artifact.telemetry)} />
       <TelemetryMeta telemetry={artifact.telemetry} />
     </article>
   );
@@ -515,6 +540,7 @@ export default React.memo(function ChatMessage({ run }) {
             <section className="assistant-section acknowledgement-strip assistant-section-shell acknowledgement-shell">
               <SectionTitle icon="acknowledgement">Acknowledgement</SectionTitle>
               <p className="acknowledgement-copy">{run.acknowledgementText}</p>
+              <ReasoningPanel content={getTelemetryReasoningContent(run.acknowledgementTelemetry)} />
               <TelemetryMeta
                 telemetry={run.acknowledgementTelemetry}
                 includeTokensPerSecond
@@ -533,6 +559,12 @@ export default React.memo(function ChatMessage({ run }) {
               <MarkdownBlock isFinal={shouldUseMarkdownFeatures}>
                 {run.responseText}
               </MarkdownBlock>
+              <ReasoningPanel
+                content={
+                  run.responseReasoningText
+                  || getTelemetryReasoningContent(run.completionTelemetry || run.responseTelemetry)
+                }
+              />
               <TelemetryMeta
                 telemetry={run.completionTelemetry || run.responseTelemetry}
                 includeTokensPerSecond

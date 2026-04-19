@@ -92,6 +92,7 @@ function createRunRecord({
     timelineItems: [],
     progressItems: [],
     responseText: "",
+    responseReasoningText: "",
     results: [],
     artifacts: [],
     latestTelemetry: null,
@@ -278,6 +279,7 @@ function applyServerEvent(run, event) {
     return {
       ...nextRun,
       responseText: `${nextRun.responseText}${event.payload.text || ""}`,
+      responseReasoningText: `${nextRun.responseReasoningText}${event.payload.reasoning_text || ""}`,
       responseTelemetry: eventTelemetry || nextRun.responseTelemetry,
       status: "running",
     };

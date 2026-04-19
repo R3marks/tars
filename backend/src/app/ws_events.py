@@ -84,13 +84,14 @@ async def send_acknowledgement(
     run_id: str,
     session_id: int,
     text: str,
+    reasoning_text: str = "",
 ):
     await send_server_event(
         websocket = websocket,
         event_kind = "assistant.acknowledgement",
         run_id = run_id,
         session_id = session_id,
-        payload = {"text": text},
+        payload = {"text": text, "reasoning_text": reasoning_text},
         legacy_type = "ack",
         legacy_message = text,
     )
@@ -245,13 +246,14 @@ async def send_response_delta(
     run_id: str,
     session_id: int,
     text: str,
+    reasoning_text: str = "",
 ):
     await send_server_event(
         websocket=websocket,
         event_kind="assistant.response.delta",
         run_id=run_id,
         session_id=session_id,
-        payload={"text": text},
+        payload={"text": text, "reasoning_text": reasoning_text},
         legacy_type="final_response",
         legacy_message=text,
     )

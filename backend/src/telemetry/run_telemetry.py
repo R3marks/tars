@@ -131,6 +131,7 @@ class ModelInvocationTelemetryRecord:
     prompt_eval_ms: int = 0
     decode_ms: int = 0
     queue_ms: int = 0
+    reasoning_content: str = ""
     status: str = "completed"
 
     def to_payload(self) -> dict:
@@ -294,6 +295,7 @@ class RunTelemetryRecorder:
         index: int,
         usage: dict[str, Any] | None = None,
         first_token_at: datetime | None = None,
+        reasoning_content: str = "",
         status: str = "completed",
     ) -> None:
         if index < 0 or index >= len(self.invocations):
@@ -302,6 +304,7 @@ class RunTelemetryRecorder:
         invocation = self.invocations[index]
         invocation.ended_at = now_utc()
         invocation.first_token_at = first_token_at
+        invocation.reasoning_content = reasoning_content or ""
         invocation.status = status
 
         usage = usage or {}

@@ -9,6 +9,18 @@ import {
   getReadableModelName,
 } from "../telemetryDisplay.js";
 
+function buildActiveReasoning(activeRun) {
+  if (!activeRun) {
+    return "";
+  }
+
+  if (activeRun.responseReasoningText) {
+    return activeRun.responseReasoningText.trim();
+  }
+
+  return activeRun.latestTelemetry?.invocation?.reasoning_content || "";
+}
+
 function buildActiveRunSummary(activeRun) {
   if (!activeRun) {
     return "";
@@ -62,8 +74,10 @@ function buildActiveRunMeta(activeRun, nowMs) {
 
 export default function ChatWindow({ runs, activeRun, activeRunExists }) {
   const chatWindowRef = useRef(null);
+  const activeReasoningRef = useRef(null);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const activeRunSummary = useMemo(() => buildActiveRunSummary(activeRun), [activeRun]);
+  const activeReasoning = useMemo(() => buildActiveReasoning(activeRun), [activeRun]);
   const activeRunMeta = useMemo(
     () => buildActiveRunMeta(activeRun, currentTimeMs),
     [activeRun, currentTimeMs],
@@ -76,6 +90,14 @@ export default function ChatWindow({ runs, activeRun, activeRunExists }) {
 
     chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
   }, [runs]);
+
+  useEffect(() => {
+    if (!activeReasoningRef.current) {
+      return;
+    }
+
+    activeReasoningRef.current.scrollTop = activeReasoningRef.current.scrollHeight;
+  }, [activeReasoning]);
 
   useEffect(() => {
     if (!activeRunExists) {
@@ -120,6 +142,14 @@ export default function ChatWindow({ runs, activeRun, activeRunExists }) {
               <p className="terminal-activity-title">Working on: {activeRunSummary}</p>
               {activeRunMeta.length > 0 ? (
                 <p className="terminal-activity-meta">{activeRunMeta.join(" | ")}</p>
+              ) : null}
+              {activeReasoning ? (
+                <details className="terminal-reasoning">
+                  <summary className="terminal-reasoning-summary">Live reasoning</summary>
+                  <div className="terminal-reasoning-content" ref={activeReasoningRef}>
+                    <pre className="terminal-reasoning-pre">{activeReasoning}</pre>
+                  </div>
+                </details>
               ) : null}
             </div>
           </div>

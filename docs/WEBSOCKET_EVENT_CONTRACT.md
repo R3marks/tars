@@ -67,6 +67,7 @@ The first visible TARS acknowledgement.
 Payload:
 
 - `text`
+- optional `reasoning_text`
 - optional `telemetry`
 
 Legacy compatibility:
@@ -168,6 +169,7 @@ Streaming or final assistant conversational output.
 Payload:
 
 - `text`
+- optional `reasoning_text`
 - optional `telemetry`
 
 Legacy compatibility:
