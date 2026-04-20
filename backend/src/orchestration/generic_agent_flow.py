@@ -9,11 +9,13 @@ from src.agents.criteria_agent import extract_expected_outcomes
 from src.agents.executor_agent import execute_step
 from src.agents.planner_agent import plan_for_outcome
 from src.config.Model import Model
+from src.config.RuntimeEnvironment import runtime_environment
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
 from src.message_structures.message import Message
 
 logger = logging.getLogger("uvicorn.error")
+RUNTIME_ENVIRONMENT = runtime_environment()
 
 MAX_PROMPT_RESULT_CHARS = 1200
 
@@ -194,7 +196,8 @@ async def handle_generic_query(
         )
 
     try:
-        with open(r"T:\Code\Apps\Tars\context.txt", "w", encoding="utf-8") as file:
+        RUNTIME_ENVIRONMENT.context_dump_path.parent.mkdir(parents = True, exist_ok = True)
+        with open(RUNTIME_ENVIRONMENT.context_dump_path, "w", encoding="utf-8") as file:
             output_string = pprint.pformat(context)
             file.write(output_string)
     except Exception as exc:

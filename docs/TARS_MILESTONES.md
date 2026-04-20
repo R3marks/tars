@@ -138,6 +138,42 @@ Important implementation considerations:
 - keep generated artifact paths stable inside a company and role specific folder so reruns overwrite the latest artifact instead of creating timestamped file bloat
 - if a future frontend renderer becomes more dynamic or LLM-assisted, it should still sit on top of explicit backend event contracts rather than replace them
 
+### Milestone 1 model-role requirements
+
+Milestone 1 is not only about one "best model". It needs a small local model fleet with distinct jobs.
+
+Required roles:
+
+- acknowledgement model
+  - should return the first TARS-flavoured acknowledgement as fast as possible
+  - quality matters less than responsiveness, as long as the reply is still truthful and on-tone
+- orchestrator model
+  - should be more capable than the acknowledgement or worker models
+  - should route work, review worker outputs, make managerial decisions, and incorporate user feedback for later runs
+- fast parallel worker model
+  - should be cheap enough to run in parallel
+  - should search, read, validate, and summarise job opportunities and related sources
+  - should support read-heavy task fan-out without becoming the bottleneck
+- sequential high-context processor
+  - should be the strongest feasible local model for reading larger single-context inputs without dropping to unusable speeds
+  - should handle deeper synthesis or longer documents when a fast worker is not enough
+- application material writer
+  - should balance intelligence and speed well enough to draft CVs, cover letters, and answers without forcing extremely long waits
+  - should be strong enough that the user acts as final editor, not primary writer
+- coder or renderer model
+  - should be fast and technically competent for code-like output
+  - should support dynamic frontend or artifact rendering work when needed
+
+Milestone 1 success therefore depends on answering these benchmark questions:
+
+- which model gives the quickest useful first response
+- which model is the most intelligent while still running at practical local speeds
+- which model is best for large sequential single-context reads
+- which model scales best under parallel task fan-out
+- which model is best suited to fast code or UI generation
+
+The benchmark and tuning work from milestone 0.6 should feed these choices directly rather than remain separate from the product plan.
+
 ## Milestone 2
 
 Support passive quality-of-life assistance and phone-facing updates.

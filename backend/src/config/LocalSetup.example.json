@@ -1,0 +1,11 @@
+{
+    "models_directory": "models",
+    "llama_server_binary_path": "llama-server",
+    "llama_bench_binary_path": "llama-bench",
+    "hardware_profile": {
+        "gpu_name": "Your GPU",
+        "total_vram_gib": 8,
+        "system_ram_gib": 32,
+        "notes": "Optional local machine notes for benchmarking."
+    }
+}

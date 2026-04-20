@@ -7,7 +7,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from src.app.router import handle_query
 from src.app.ws_events import send_acknowledgement, send_phase_changed, send_run_accepted, send_run_failed
 from src.config.InferenceProvider import InferenceProvider
+from src.config.LlamaCppPresetGenerator import generate_llama_cpp_presets
 from src.config.ModelConfig import ModelConfig
+from src.config.RuntimeEnvironment import runtime_environment
 from src.infer.LlamaCppServerModelManager import LlamaCppServerModelManager
 from src.infer.LlamaServerProcess import LlamaServerProcess
 from src.message_structures.conversation_manager import ConversationManager
@@ -19,15 +21,26 @@ logger = logging.getLogger("uvicorn.error")
 api_router = APIRouter()
 conversation_manager = ConversationManager()
 
+RUNTIME_ENVIRONMENT = runtime_environment()
+MODEL_REGISTRY_PATH = str(RUNTIME_ENVIRONMENT.registry_path)
+LLAMA_SERVER_PRESET_PATH = str(RUNTIME_ENVIRONMENT.preset_output_path)
+LLAMA_SERVER_BINARY_PATH = RUNTIME_ENVIRONMENT.llama_server_binary_path
+MODELS_DIRECTORY_PATH = str(RUNTIME_ENVIRONMENT.models_directory)
+
+generate_llama_cpp_presets(
+    registry_path = MODEL_REGISTRY_PATH,
+    output_path = LLAMA_SERVER_PRESET_PATH,
+)
+
 config = ModelConfig(
-    "T:/Code/Apps/Tars/backend/src/config/LlamaCppConfig.json",
+    MODEL_REGISTRY_PATH,
     InferenceProvider.LLAMA_CPP,
 )
 
 server = LlamaServerProcess(
-    llama_server_path = "T:/Code/Repos/llama.cpp/build/bin/Release/llama-server.exe",
-    models_dir = "T:/Models",
-    models_config = "T:/Code/Apps/Tars/model-configs.ini",
+    llama_server_path = LLAMA_SERVER_BINARY_PATH,
+    models_dir = MODELS_DIRECTORY_PATH,
+    models_config = LLAMA_SERVER_PRESET_PATH,
     port = 8080,
 )
 
@@ -171,6 +184,10 @@ def build_acknowledgement_response(message: str) -> str:
 
 
 def resolve_acknowledgement_model():
+    acknowledgement_model = model_manager.config.get_model("Qwen 3.5 4B Instruct (Q4_K_M)")
+    if acknowledgement_model is not None:
+        return acknowledgement_model
+
     acknowledgement_model = model_manager.config.get_model("Qwen 3.5 4B Instruct (Q6_K)")
     if acknowledgement_model is not None:
         return acknowledgement_model

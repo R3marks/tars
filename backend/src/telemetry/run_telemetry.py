@@ -54,10 +54,15 @@ class ModelTelemetrySnapshot:
     model_id: str
     display_name: str
     role: str = ""
+    family: str = ""
+    benchmark_tier: str = ""
+    intended_roles: list[str] = field(default_factory = list)
     gguf_filename: str = ""
     mmproj_filename: str = ""
     supports_vision: bool = False
     quantization: str = ""
+    thinking_budget: str = ""
+    context_window: int = 0
     provider: str = ""
 
     def to_payload(self) -> dict:
@@ -473,14 +478,28 @@ def model_to_snapshot(model) -> ModelTelemetrySnapshot:
     if hasattr(provider, "name"):
         provider = provider.name
 
+    context_window_method = getattr(model, "context_window", None)
+    context_window = 0
+    if callable(context_window_method):
+        context_window = int(context_window_method() or 0)
+
+    if not context_window:
+        runtime_preset = dict(getattr(model, "runtime_preset", {}) or {})
+        context_window = int(runtime_preset.get("context_window") or 0)
+
     return ModelTelemetrySnapshot(
         model_id=getattr(model, "id", ""),
         display_name=display_name,
         role=str(role),
+        family=str(getattr(model, "family", "") or ""),
+        benchmark_tier=str(getattr(model, "benchmark_tier", "") or ""),
+        intended_roles=list(getattr(model, "intended_roles", []) or []),
         gguf_filename=Path(getattr(model, "path", "")).name if getattr(model, "path", "") else "",
         mmproj_filename=Path(getattr(model, "mmproj_path", "")).name if getattr(model, "mmproj_path", "") else "",
         supports_vision=bool(getattr(model, "supports_vision", False)),
         quantization=str(quantization),
+        thinking_budget=str(getattr(model, "thinking_budget", "") or ""),
+        context_window=context_window,
         provider=str(provider),
     )
 

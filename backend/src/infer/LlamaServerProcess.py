@@ -25,6 +25,7 @@ class LlamaServerProcess:
             "--models-preset", models_config,
             "--no-models-autoload",
             "--models-max", "1",
+            "--parallel", "1",
             "--metrics",
             "--slots",
             "--port", str(port),

@@ -191,6 +191,43 @@ Legacy compatibility:
 - `type = "final"`
 - `message = "[DONE]"`
 
+## Telemetry Shape Notes
+
+The backend telemetry object is intentionally additive. Frontend consumers should treat all fields as optional and ignore anything they do not currently render.
+
+Current model telemetry can include:
+
+- `model_id`
+- `display_name`
+- `role`
+- `family`
+- `benchmark_tier`
+- `intended_roles`
+- `gguf_filename`
+- `mmproj_filename`
+- `supports_vision`
+- `quantization`
+- `thinking_budget`
+- `context_window`
+- `provider`
+
+Current timing telemetry can include:
+
+- `started_at`
+- `ended_at`
+- `elapsed_ms`
+- `queue_ms`
+- `first_token_ms`
+- `prompt_eval_ms`
+- `decode_ms`
+
+Current usage telemetry can include:
+
+- `input_tokens`
+- `output_tokens`
+- `total_tokens`
+- `tokens_per_second`
+
 ### `run.failed`
 
 The run finished with a recoverable user-facing failure.
@@ -285,7 +322,7 @@ Example:
   "changed": ["updated the opening summary"],
   "blocked": [],
   "needs_review": ["cover_letter"],
-  "output_paths": ["T:/Code/Apps/Tars/generated/applications/example/generated_cv.html"]
+  "output_paths": ["generated/applications/example/generated_cv.html"]
 }
 ```
 
