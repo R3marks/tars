@@ -72,9 +72,10 @@ function buildActiveRunMeta(activeRun, nowMs) {
   return items;
 }
 
-export default function ChatWindow({ runs, activeRun, activeRunExists }) {
+export default function ChatWindow({ runs, activeRun, activeRunExists, onRunAction }) {
   const chatWindowRef = useRef(null);
   const activeReasoningRef = useRef(null);
+  const previousRunCountRef = useRef(runs.length);
   const [currentTimeMs, setCurrentTimeMs] = useState(() => Date.now());
   const activeRunSummary = useMemo(() => buildActiveRunSummary(activeRun), [activeRun]);
   const activeReasoning = useMemo(() => buildActiveReasoning(activeRun), [activeRun]);
@@ -85,11 +86,18 @@ export default function ChatWindow({ runs, activeRun, activeRunExists }) {
 
   useEffect(() => {
     if (!chatWindowRef.current) {
+      previousRunCountRef.current = runs.length;
       return;
     }
 
-    chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
-  }, [runs]);
+    const runCountChanged = previousRunCountRef.current !== runs.length;
+
+    if (runCountChanged || activeRunExists) {
+      chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
+    }
+
+    previousRunCountRef.current = runs.length;
+  }, [runs, activeRunExists]);
 
   useEffect(() => {
     if (!activeReasoningRef.current) {
@@ -131,7 +139,7 @@ export default function ChatWindow({ runs, activeRun, activeRunExists }) {
     <section className="chat-window" ref={chatWindowRef}>
       <div className="chat-content">
         {runs.map((run) => (
-          <ChatMessage key={run.runId || run.localId} run={run} />
+          <ChatMessage key={run.runId || run.localId} run={run} onRunAction={onRunAction} />
         ))}
 
         {activeRunExists ? (

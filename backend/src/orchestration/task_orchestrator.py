@@ -5,14 +5,13 @@ from dataclasses import dataclass
 from fastapi import WebSocket
 
 from src.app.result_payloads import TaskAgentSelectionPayload
-from src.app.ws_events import send_phase_changed, send_result_event, send_response_delta, send_run_completed
+from src.app.ws_events import send_phase_changed, send_result_event
 from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
 from src.message_structures.message import Message
-from src.orchestration.generic_agent_flow import handle_generic_query
 from src.orchestration.model_roles import OrchestrationModels
-from src.workflows.job_application.workflow import run_job_application_workflow
+from src.orchestration.task_agent_registry import build_task_agent_selection_prompt, run_task_agent, task_agent_names
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -28,8 +27,7 @@ TASK_AGENT_TOOLS = [
                     "agent_name": {
                         "type": "string",
                         "enum": [
-                            "job_application_agent",
-                            "generic_task_agent",
+                            *task_agent_names(),
                         ],
                     },
                     "reason": {"type": "string"},
@@ -85,52 +83,15 @@ async def handle_task_query(
         detail=f"Selected task agent: {decision.agent_name}",
     )
 
-    if decision.agent_name == "job_application_agent":
-        await send_phase_changed(
-            websocket=websocket,
-            run_id=run_id,
-            session_id=session_id,
-            phase="preparing_job_application_workflow",
-            detail="Starting job application workflow.",
-        )
-        workflow_result = await run_job_application_workflow(
-            query=query,
-            websocket=websocket,
-            run_id=run_id,
-            session_id=session_id,
-            conversation_history=conversation_history,
-            model_manager=model_manager,
-            orchestration_models=orchestration_models,
-        )
-        await send_response_delta(
-            websocket=websocket,
-            run_id=run_id,
-            session_id=session_id,
-            text=workflow_result.final_response,
-        )
-        await send_run_completed(
-            websocket=websocket,
-            run_id=run_id,
-            session_id=session_id,
-            status=workflow_result.status,
-        )
-        return
-
-    await send_phase_changed(
-        websocket=websocket,
-        run_id=run_id,
-        session_id=session_id,
-        phase="running_generic_task_agent",
-        detail="Starting generic task agent flow.",
-    )
-    await handle_generic_query(
+    await run_task_agent(
+        agent_name=decision.agent_name,
         query=query,
         websocket=websocket,
         run_id=run_id,
         session_id=session_id,
         conversation_history=conversation_history,
-        model=orchestration_models.worker_model,
         model_manager=model_manager,
+        orchestration_models=orchestration_models,
     )
 
 
@@ -139,22 +100,7 @@ def select_task_agent(
     model: Model,
     model_manager: ModelManager,
 ) -> TaskAgentDecision:
-    prompt = f"""
-    You are choosing which registered task agent should handle a user's request.
-
-    Available agents:
-    - job_application_agent: prepares job application materials from links, local files, or mixed context. It can create CVs, cover letters, review packages, and copy-paste application answers.
-    - generic_task_agent: handles all other task-style requests through the generic agent flow.
-
-    Rules:
-    - Choose job_application_agent if the request is about applying to a job, preparing an application, generating job application materials, using a job link, or working with CVs, resumes, cover letters, or application answers.
-    - Choose generic_task_agent for all other task-style requests.
-
-    User request:
-    ---
-    {query}
-    ---
-    """
+    prompt = build_task_agent_selection_prompt(query)
 
     response = model_manager.ask_model(
         model,

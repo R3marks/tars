@@ -4,8 +4,7 @@ For the fastest accurate repo context in future sessions, read these first:
 
 - `docs/REPO_TREE.md`
 - `docs/TARS_MILESTONES.md`
-- `docs/MILESTONE_0_5_PLAN.md`
-- `docs/MILESTONE_0_6_PLAN.md`
+- `docs/MILESTONE_1_PLAN.md`
 - `docs/WEBSOCKET_EVENT_CONTRACT.md`
 - `docs/CODE_STYLE.md`
 - `docs/LOCAL_SETUP_WORKFLOW.md`

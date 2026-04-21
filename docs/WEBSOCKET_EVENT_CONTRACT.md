@@ -45,6 +45,20 @@ Phase 1 canonical request shape:
 }
 ```
 
+Milestone 1 also uses explicit action events:
+
+```json
+{
+  "event_kind": "run.action",
+  "session_id": 1,
+  "payload": {
+    "action_type": "job.prepare_application",
+    "job_slug": "example-company-senior-backend-engineer",
+    "artifact_types": ["cv", "cover_letter", "application_answers", "form_field_answers"]
+  }
+}
+```
+
 Transition compatibility:
 
 - the backend should still accept the current payload shape with `type`, `message`, and `sessionId`
@@ -139,6 +153,7 @@ Canonical `result_type` values currently prepared on the backend:
 - `workflow_summary`
 - `partial_result`
 - `job_search_results`
+- `saved_job_state`
 
 ### `run.artifact`
 
@@ -332,19 +347,97 @@ Example:
 {
   "result_type": "job_search_results",
   "query_summary": "Frontend roles in London focused on React and product design systems.",
+  "search_spec": {
+    "query": "search for frontend jobs in london",
+    "summary": "Job search for frontend roles in London",
+    "keywords": ["frontend", "react"],
+    "location": "London",
+    "remote_preference": "",
+    "seniority": "",
+    "company_names": [],
+    "exact_urls": [],
+    "preferred_boards": ["greenhouse", "lever", "ashby"],
+    "limit": 10
+  },
   "matches": [
     {
-      "item_id": "job_001",
+      "job_slug": "example-co-senior-frontend-engineer-london",
       "title": "Senior Frontend Engineer",
       "company": "Example Co",
       "location": "London",
       "source": "greenhouse",
       "summary": "React, TypeScript, design-system work.",
       "url": "https://example.com/jobs/1",
-      "suitability_label": "strong_match"
+      "source_url": "https://example.com/jobs/1",
+      "state": "discovered",
+      "score": 4.5,
+      "suitability_label": "strong_match",
+      "suitability_rationale": "matched frontend, react; location fit: London",
+      "actions": [
+        {
+          "action_type": "job.save",
+          "label": "Save job",
+          "job_slug": "example-co-senior-frontend-engineer-london"
+        },
+        {
+          "action_type": "job.prepare_application",
+          "label": "Prepare application",
+          "job_slug": "example-co-senior-frontend-engineer-london",
+          "artifact_types": ["cv", "cover_letter", "application_answers", "form_field_answers"]
+        }
+      ],
+      "view_blocks": [
+        {
+          "block_type": "job_card",
+          "title": "Senior Frontend Engineer",
+          "summary": "React, TypeScript, design-system work."
+        }
+      ]
     }
   ],
   "total_matches": 1,
-  "recommendation_summary": "Strong overlap with frontend product work."
+  "recommendation_summary": "Strong overlap with frontend product work.",
+  "actions": [
+    {
+      "action_type": "job.save",
+      "label": "Save all",
+      "job_slugs": ["example-co-senior-frontend-engineer-london"]
+    }
+  ],
+  "view_blocks": [
+    {
+      "block_type": "status_summary",
+      "title": "Job Search Summary",
+      "summary": "Strong overlap with frontend product work."
+    },
+    {
+      "block_type": "job_list",
+      "title": "Matches"
+    }
+  ]
+}
+```
+
+### `saved_job_state`
+
+```json
+{
+  "result_type": "saved_job_state",
+  "job_slug": "example-co-senior-frontend-engineer-london",
+  "state": "selected_for_draft",
+  "previous_state": "saved",
+  "title": "Senior Frontend Engineer",
+  "company": "Example Co",
+  "location": "London",
+  "source": "greenhouse",
+  "source_url": "https://example.com/jobs/1",
+  "summary": "React, TypeScript, design-system work.",
+  "output_paths": [
+    "generated/jobs/example-co-senior-frontend-engineer-london/job_lead.json"
+  ],
+  "job_record": {
+    "job_slug": "example-co-senior-frontend-engineer-london",
+    "state": "selected_for_draft"
+  }
 }
 ```

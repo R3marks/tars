@@ -1,3 +1,5 @@
+import { getActionSignature, normalizeJobAction, normalizeJobActions, normalizeViewBlocks } from "./jobContracts.js";
+
 const legacyEventKindByType = {
   ack: "assistant.acknowledgement",
   route_decision: "run.routed",
@@ -95,6 +97,9 @@ function createRunRecord({
     responseReasoningText: "",
     results: [],
     artifacts: [],
+    availableActions: [],
+    viewBlocks: [],
+    actionRequests: [],
     latestTelemetry: null,
     acknowledgementTelemetry: null,
     responseTelemetry: null,
@@ -164,6 +169,125 @@ function appendTimelineItem(run, item) {
   };
 }
 
+function createActionRequest(action, timestamp, source = "local") {
+  const normalizedAction = normalizeJobAction(action);
+
+  if (!normalizedAction) {
+    return null;
+  }
+
+  return {
+    ...normalizedAction,
+    signature: getActionSignature(normalizedAction),
+    requestedAt: timestamp,
+    source,
+  };
+}
+
+function mergeActionRequests(existingRequests, nextRequest) {
+  if (!nextRequest) {
+    return existingRequests;
+  }
+
+  const existingIndex = existingRequests.findIndex((request) => request.signature === nextRequest.signature);
+
+  if (existingIndex >= 0) {
+    const existingRequest = existingRequests[existingIndex];
+    const source = existingRequest.source === "local" || nextRequest.source === "local"
+      ? "local"
+      : (nextRequest.source || existingRequest.source || "");
+    const requestedAt = existingRequest.source === "local"
+      ? existingRequest.requestedAt
+      : nextRequest.requestedAt;
+
+    const mergedRequest = {
+      ...existingRequest,
+      ...nextRequest,
+      source,
+      requestedAt,
+    };
+
+    const updatedRequests = [...existingRequests];
+    updatedRequests[existingIndex] = mergedRequest;
+    return updatedRequests;
+  }
+
+  return [...existingRequests, nextRequest];
+}
+
+function updateJobSearchResultsWithSavedState(results, savedState) {
+  const jobSlug = savedState.job_slug || savedState.job_record?.job_slug || "";
+  if (!jobSlug) {
+    return results;
+  }
+
+  return results.map((result) => {
+    if (result.result_type !== "job_search_results") {
+      return result;
+    }
+
+    const matches = (result.matches || []).map((job) => {
+      if (job.job_slug !== jobSlug) {
+        return job;
+      }
+
+      return {
+        ...job,
+        state: savedState.state || job.state,
+        previous_state: savedState.previous_state || job.previous_state,
+        output_paths: savedState.output_paths || job.output_paths,
+      };
+    });
+
+    const viewBlocks = (result.view_blocks || result.viewBlocks || []).map((block) => {
+      const items = (block.items || []).map((job) => {
+        if (job.job_slug !== jobSlug) {
+          return job;
+        }
+
+        return {
+          ...job,
+          state: savedState.state || job.state,
+          previous_state: savedState.previous_state || job.previous_state,
+          output_paths: savedState.output_paths || job.output_paths,
+        };
+      });
+
+      return {
+        ...block,
+        items,
+      };
+    });
+
+    return {
+      ...result,
+      matches,
+      view_blocks: viewBlocks,
+    };
+  });
+}
+
+function removeCompletedStateActionRequests(actionRequests, savedState) {
+  const jobSlug = savedState.job_slug || savedState.job_record?.job_slug || "";
+  const completedActionTypes = new Set(["job.save", "job.select_for_draft"]);
+
+  return actionRequests.filter((request) => {
+    if (request.source !== "local") {
+      return true;
+    }
+
+    if (!completedActionTypes.has(request.action_type)) {
+      return true;
+    }
+
+    if (request.job_slug === jobSlug) {
+      return false;
+    }
+
+    return !request.job_slugs.includes(jobSlug);
+  });
+}
+
 function applyServerEvent(run, event) {
   const eventTelemetry = event.payload.telemetry || null;
   const nextRun = {
@@ -177,7 +301,7 @@ function applyServerEvent(run, event) {
   if (event.eventKind === "run.accepted") {
     return {
       ...nextRun,
-      userMessage: event.payload.user_message || run.userMessage,
+      userMessage: run.userMessage || event.payload.user_message || "",
       status: "accepted",
       error: null,
     };
@@ -243,6 +367,33 @@ function applyServerEvent(run, event) {
   if (event.eventKind === "run.result") {
     const { telemetry, ...resultPayload } = event.payload;
     const sanitizedPayload = sanitizeStructuredValue(resultPayload) || {};
+    const resultActions = normalizeJobActions(sanitizedPayload.actions || []);
+    const nextActionRequests = resultActions
+      .map((action) => createActionRequest(action, event.timestamp, "server"))
+      .filter(Boolean);
+    const nextViewBlocks = normalizeViewBlocks(sanitizedPayload.view_blocks || sanitizedPayload.viewBlocks || []);
+
+    if (sanitizedPayload.result_type === "saved_job_state") {
+      const updatedResults = updateJobSearchResultsWithSavedState(nextRun.results, sanitizedPayload);
+      const stateOnlyUpdate = sanitizedPayload.state === "saved" || sanitizedPayload.state === "selected_for_draft";
+
+      return {
+        ...nextRun,
+        results: stateOnlyUpdate
+          ? updatedResults
+          : [
+              ...updatedResults,
+              {
+                ...sanitizedPayload,
+                telemetry: telemetry || null,
+                timestamp: event.timestamp,
+              },
+            ],
+        actionRequests: removeCompletedStateActionRequests(nextRun.actionRequests, sanitizedPayload),
+        latestTelemetry: eventTelemetry || nextRun.latestTelemetry,
+        status: stateOnlyUpdate ? nextRun.status : "running",
+      };
+    }
 
     return {
       ...nextRun,
@@ -254,6 +405,43 @@ function applyServerEvent(run, event) {
           timestamp: event.timestamp,
         },
       ],
+      availableActions: [
+        ...nextRun.availableActions,
+        ...resultActions,
+      ],
+      viewBlocks: [
+        ...nextRun.viewBlocks,
+        ...nextViewBlocks,
+      ],
+      actionRequests: [
+        ...nextRun.actionRequests,
+        ...nextActionRequests,
+      ],
+      status: "running",
+    };
+  }
+
+  if (event.eventKind === "run.action") {
+    const nextActionRequest = createActionRequest(event.payload, event.timestamp, "server");
+
+    return {
+      ...nextRun,
+      availableActions: nextActionRequest
+        ? [...nextRun.availableActions, nextActionRequest]
+        : nextRun.availableActions,
+      actionRequests: mergeActionRequests(nextRun.actionRequests, nextActionRequest),
+      timelineItems: nextActionRequest
+        ? [
+            ...nextRun.timelineItems,
+            {
+              kind: "action",
+              label: "Action",
+              value: nextActionRequest.action_type,
+              detail: nextActionRequest.job_slug || nextActionRequest.job_slugs.join(", "),
+              timestamp: event.timestamp,
+            },
+          ]
+        : nextRun.timelineItems,
       status: "running",
     };
   }
@@ -320,6 +508,40 @@ export function chatRunsReducer(runs, action) {
         status: "queued",
       }),
     ];
+  }
+
+  if (action.type === "action.sent") {
+    const runIndex = runs.findIndex((run) => run.runId === action.runId || run.localId === action.runLocalId);
+
+    if (runIndex === -1) {
+      return runs;
+    }
+
+    const updatedRuns = [...runs];
+    const nextActionRequest = createActionRequest(action.payload, action.createdAt, "local");
+
+    updatedRuns[runIndex] = {
+      ...updatedRuns[runIndex],
+      actionRequests: mergeActionRequests(updatedRuns[runIndex].actionRequests, nextActionRequest),
+      availableActions: nextActionRequest
+        ? [...updatedRuns[runIndex].availableActions, nextActionRequest]
+        : updatedRuns[runIndex].availableActions,
+      timelineItems: nextActionRequest
+        ? [
+            ...updatedRuns[runIndex].timelineItems,
+            {
+              kind: "action",
+              label: "Action",
+              value: nextActionRequest.action_type,
+              detail: nextActionRequest.job_slug || nextActionRequest.job_slugs.join(", "),
+              timestamp: action.createdAt,
+            },
+          ]
+        : updatedRuns[runIndex].timelineItems,
+      updatedAt: action.createdAt,
+    };
+
+    return updatedRuns;
   }
 
   if (action.type === "event.received") {

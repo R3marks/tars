@@ -10,6 +10,7 @@ import {
   getReadableModelName,
   getTelemetryItems,
 } from "../telemetryDisplay.js";
+import JobSearchResultCard, { SavedJobStateCard } from "../JobResults/JobResults.jsx";
 import "./ChatMessage.css";
 
 function SectionTitle({ icon, children }) {
@@ -358,62 +359,6 @@ function PartialResultCard({ result }) {
   );
 }
 
-function JobSearchResultCard({ result }) {
-  const matches = result.matches || [];
-
-  return (
-    <article className="structured-card result-card result-card-wide">
-      <div className="card-topline">
-        <div className="card-eyebrow-wrap">
-          <AppIcon name="job" className="card-eyebrow-icon" />
-          <p className="card-eyebrow">Job Search</p>
-        </div>
-        <span className="status-chip status-info">
-          {`${result.total_matches || matches.length} match${(result.total_matches || matches.length) === 1 ? "" : "es"}`}
-        </span>
-      </div>
-
-      {result.query_summary ? <p className="card-copy">{result.query_summary}</p> : null}
-      {result.recommendation_summary ? (
-        <p className="card-supporting-copy">{result.recommendation_summary}</p>
-      ) : null}
-
-      {matches.length > 0 ? (
-        <div className="job-match-list">
-          {matches.map((match) => (
-            <article key={match.item_id || `${match.title}-${match.company}-${match.url}`} className="job-match-card">
-              <div className="card-topline">
-                <p className="job-match-title">{match.title || "Untitled role"}</p>
-                {match.suitability_label ? (
-                  <span className="status-chip status-info">{humanizeLabel(match.suitability_label)}</span>
-                ) : null}
-              </div>
-              <KeyValueList
-                items={[
-                  { label: "Company", value: match.company },
-                  { label: "Location", value: match.location },
-                  { label: "Source", value: match.source },
-                ]}
-              />
-              {match.summary ? <p className="card-copy">{match.summary}</p> : null}
-              {match.url ? (
-                <a className="card-link" href={match.url} target="_blank" rel="noreferrer">
-                  Open posting
-                </a>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      ) : (
-        <p className="card-supporting-copy">No structured job matches were returned for this run.</p>
-      )}
-
-      <ReasoningPanel content={getTelemetryReasoningContent(result.telemetry)} />
-      <TelemetryMeta telemetry={result.telemetry} />
-    </article>
-  );
-}
-
 function UnknownResultCard({ result }) {
   return (
     <article className="structured-card result-card">
@@ -425,7 +370,7 @@ function UnknownResultCard({ result }) {
   );
 }
 
-function renderResultCard(result, index) {
+function renderResultCard(result, index, run, onRunAction) {
   const key = `${result.timestamp}-${result.result_type || "result"}-${index}`;
 
   if (result.result_type === "task_agent_selection") {
@@ -445,13 +390,17 @@ function renderResultCard(result, index) {
   }
 
   if (result.result_type === "job_search_results") {
-    return <JobSearchResultCard key={key} result={result} />;
+    return <JobSearchResultCard key={key} result={result} run={run} onAction={onRunAction} />;
+  }
+
+  if (result.result_type === "saved_job_state") {
+    return <SavedJobStateCard key={key} result={result} />;
   }
 
   return <UnknownResultCard key={key} result={result} />;
 }
 
-function ResultList({ results }) {
+function ResultList({ results, run, onRunAction }) {
   if (results.length === 0) {
     return null;
   }
@@ -460,7 +409,7 @@ function ResultList({ results }) {
     <section className="assistant-section assistant-section-shell results-shell">
       <SectionTitle icon="results">Results</SectionTitle>
       <div className="card-list">
-        {results.map((result, index) => renderResultCard(result, index))}
+        {results.map((result, index) => renderResultCard(result, index, run, onRunAction))}
       </div>
     </section>
   );
@@ -518,7 +467,7 @@ function ArtifactList({ artifacts }) {
   );
 }
 
-export default React.memo(function ChatMessage({ run }) {
+export default React.memo(function ChatMessage({ run, onRunAction }) {
   const shouldUseMarkdownFeatures = run.status === "completed";
 
   return (
@@ -550,7 +499,7 @@ export default React.memo(function ChatMessage({ run }) {
           ) : null}
 
           <TimelineList timelineItems={run.timelineItems || []} />
-          <ResultList results={run.results} />
+          <ResultList results={run.results} run={run} onRunAction={onRunAction} />
           <ArtifactList artifacts={run.artifacts} />
 
           {run.responseText ? (

@@ -109,6 +109,52 @@ export function ArtifactIcon({ className = "" }) {
   );
 }
 
+export function SaveIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={iconClass(className)} aria-hidden="true">
+      <path d="M6 5h10l2 2v12H6z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M8 5v6h8V5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M8 16h8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function SelectIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={iconClass(className)} aria-hidden="true">
+      <rect x="5" y="6" width="14" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M8 12h4M12 12l-2-2M12 12l-2 2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function PrepareIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={iconClass(className)} aria-hidden="true">
+      <path d="M7 7h10v10H7z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M9 12h6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M12 9v6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function StatusIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={iconClass(className)} aria-hidden="true">
+      <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M9 12h6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function JobActionIcon({ className = "" }) {
+  return (
+    <svg viewBox="0 0 24 24" className={iconClass(className)} aria-hidden="true">
+      <path d="M7 12h10M12 7v10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export const ICONS_BY_NAME = {
   acknowledgement: AcknowledgementIcon,
   operator: OperatorIcon,
@@ -121,6 +167,11 @@ export const ICONS_BY_NAME = {
   workflow: WorkflowIcon,
   job: JobIcon,
   artifact: ArtifactIcon,
+  save: SaveIcon,
+  select: SelectIcon,
+  prepare: PrepareIcon,
+  status: StatusIcon,
+  jobAction: JobActionIcon,
 };
 
 export function AppIcon({ name, className = "" }) {

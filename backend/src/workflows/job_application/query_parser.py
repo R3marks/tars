@@ -1,5 +1,6 @@
 import re
 from pathlib import PureWindowsPath
+from typing import Any
 
 from src.workflows.job_application.models import ApplicationRequest, OutputTarget
 
@@ -33,6 +34,35 @@ def parse_job_application_request(query: str) -> ApplicationRequest:
         company_address="",
         output_targets=output_targets,
     )
+
+
+def build_saved_job_application_query(
+    job_record: dict[str, Any],
+    job_posting_path: str = "",
+) -> str:
+    title = str(job_record.get("title", "")).strip() or "the saved role"
+    company = str(job_record.get("company", "")).strip() or "the saved company"
+    source_url = str(job_record.get("source_url", "")).strip()
+    summary = str(job_record.get("summary", "")).strip()
+
+    query_parts = [
+        f"Apply to {company}.",
+        f"Role title: {title}.",
+    ]
+
+    if source_url:
+        query_parts.append(f"Source URL: {source_url}.")
+
+    if job_posting_path:
+        query_parts.append(f"Use the saved job posting at `{job_posting_path}`.")
+
+    if summary:
+        query_parts.append(f"Saved job summary: {summary}.")
+
+    query_parts.append(
+        "Prepare CV, cover letter, application answers, and form field answers where the saved job inputs support them.",
+    )
+    return "\n".join(query_parts)
 
 
 def find_requested_artifacts(lowered_query: str) -> list[str]:
@@ -154,7 +184,10 @@ def find_company_name(query: str) -> str:
         if alias in lowered_query:
             return company_name
 
-    company_match = re.search(r"apply to\s+([A-Z][A-Za-z0-9&.\- ]+)", query)
+    company_match = re.search(
+        r"apply to\s+([A-Z][A-Za-z0-9&.\- ]+?)(?:[.!?\n]|$)",
+        query,
+    )
     if company_match is None:
         return ""
 

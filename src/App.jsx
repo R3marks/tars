@@ -60,9 +60,44 @@ function findActiveRun(runs) {
   return null;
 }
 
+function actionRunsSilently(action) {
+  return action?.action_type === "job.save"
+    || action?.action_type === "job.select_for_draft";
+}
+
+function buildActionToast(rawEvent) {
+  if (rawEvent?.event_kind !== "run.result") {
+    return null;
+  }
+
+  const payload = rawEvent.payload || {};
+  if (payload.result_type !== "saved_job_state") {
+    return null;
+  }
+
+  const state = String(payload.state || "").trim();
+  if (state !== "saved" && state !== "selected_for_draft") {
+    return null;
+  }
+
+  const jobRecord = payload.job_record || {};
+  const jobTitle = jobRecord.title || payload.job_slug || "Job";
+  const company = jobRecord.company ? ` at ${jobRecord.company}` : "";
+  const message = state === "saved"
+    ? `${jobTitle}${company} saved.`
+    : `${jobTitle}${company} selected for draft.`;
+
+  return {
+    id: `${rawEvent.run_id || "run"}-${payload.job_slug || state}-${Date.now()}`,
+    message,
+    tone: state === "saved" ? "success" : "selected",
+  };
+}
+
 function App() {
   const [runs, dispatch] = useReducer(chatRunsReducer, []);
   const [connectionState, setConnectionState] = useState("connecting");
+  const [toasts, setToasts] = useState([]);
   const websocketRef = useRef(null);
 
   useEffect(() => {
@@ -71,11 +106,19 @@ function App() {
 
     websocket.onmessage = (event) => {
       const rawEvent = JSON.parse(event.data);
+      const actionToast = buildActionToast(rawEvent);
 
       dispatch({
         type: "event.received",
         rawEvent,
       });
+
+      if (actionToast) {
+        setToasts((currentToasts) => [...currentToasts, actionToast]);
+        window.setTimeout(() => {
+          setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== actionToast.id));
+        }, 2600);
+      }
     };
 
     websocket.onopen = () => {
@@ -126,6 +169,55 @@ function App() {
     }));
   }
 
+  function sendRunAction(actionContext) {
+    const { action, run } = actionContext || {};
+
+    if (!action || !run) {
+      return;
+    }
+
+    if (action.action_type === "job.open_source") {
+      const sourceUrl = action.source_url || action.url || "";
+      if (sourceUrl) {
+        window.open(sourceUrl, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
+
+    const createdAt = new Date().toISOString();
+    const silentAction = actionRunsSilently(action);
+    const runId = silentAction ? (run.runId || "") : "";
+    const actionPayload = {
+      action_type: action.action_type,
+      job_slug: action.job_slug || undefined,
+      job_slugs: action.job_slugs?.length ? action.job_slugs : undefined,
+      target_status: action.target_status || undefined,
+      artifact_types: action.artifact_types?.length ? action.artifact_types : undefined,
+      label: action.label || undefined,
+      display_mode: silentAction ? "silent" : "visible",
+      source: "frontend",
+    };
+
+    dispatch({
+      type: "action.sent",
+      runId,
+      runLocalId: run.localId,
+      payload: actionPayload,
+      createdAt,
+    });
+
+    if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    websocketRef.current.send(JSON.stringify({
+      event_kind: "run.action",
+      session_id: SESSION_ID,
+      run_id: runId || undefined,
+      payload: actionPayload,
+    }));
+  }
+
   const activeRunExists = hasActiveRun(runs);
   const signalState = getSignalState(connectionState, activeRunExists);
   const activeRun = useMemo(() => findActiveRun(runs), [runs]);
@@ -167,6 +259,7 @@ function App() {
             runs={runs}
             activeRun={activeRun}
             activeRunExists={activeRunExists}
+            onRunAction={sendRunAction}
           />
         </main>
 
@@ -179,6 +272,17 @@ function App() {
             hasActiveRun={activeRunExists}
           />
         </footer>
+
+        {toasts.length > 0 ? (
+          <div className="toast-stack" aria-live="polite" aria-atomic="true">
+            {toasts.map((toast) => (
+              <div className={`toast-message ${toast.tone}`} key={toast.id}>
+                <span className="toast-light" />
+                <span>{toast.message}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

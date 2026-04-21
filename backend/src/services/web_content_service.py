@@ -3,6 +3,7 @@ import logging
 import html as html_module
 import re
 import sys
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -38,6 +39,10 @@ async def fetch_page_markdown(url: str) -> str:
 
 
 def fetch_page_markdown_fallback(url: str) -> str:
+    url = normalize_fetch_url(url)
+    if not url:
+        return ""
+
     try:
         response = requests.get(
             url,
@@ -47,11 +52,29 @@ def fetch_page_markdown_fallback(url: str) -> str:
             },
         )
         response.raise_for_status()
+    except requests.HTTPError as exc:
+        status_code = exc.response.status_code if exc.response is not None else ""
+        logger.warning("Fallback web fetch skipped %s: HTTP %s", url, status_code)
+        return ""
     except Exception:
         logger.exception("Fallback web fetch failed for %s", url)
         return ""
 
     return html_to_markdownish_text(response.text)
+
+
+def normalize_fetch_url(url: str) -> str:
+    if not url:
+        return ""
+
+    absolute_url = urljoin("https:", url)
+    parsed_url = urlparse(absolute_url)
+    query_values = parse_qs(parsed_url.query)
+    uddg_values = query_values.get("uddg", [])
+    if uddg_values:
+        return unquote(uddg_values[0])
+
+    return absolute_url
 
 
 def browser_fetch_is_supported() -> bool:

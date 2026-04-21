@@ -18,6 +18,7 @@ class LlamaServerProcess:
         self.port = port
         self.base_url = f"http://127.0.0.1:{port}"
         self.proc: subprocess.Popen | None = None
+        self.models_dir = models_dir
 
         self.cmd = [
             llama_server_path,
@@ -40,6 +41,7 @@ class LlamaServerProcess:
         logger.info("🚀 Starting llama-server")
         self.proc = subprocess.Popen(
             self.cmd,
+            cwd = self.models_dir,
             stdout = subprocess.DEVNULL,
             stderr = subprocess.DEVNULL,
         )

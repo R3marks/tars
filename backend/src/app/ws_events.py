@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket
 
-from src.app.result_payloads import JobSearchResultsPayload
+from src.app.result_payloads import JobSearchResultsPayload, SavedJobStatePayload
 from src.telemetry.run_telemetry import get_current_run_recorder
 
 PROTOCOL_VERSION = "0.6"
@@ -42,10 +42,9 @@ async def send_server_event(
     legacy_type: str = "",
     legacy_message: str = "",
 ):
+    payload = normalize_payload(payload)
     if not isinstance(payload, dict):
-        payload = normalize_payload(payload)
-    else:
-        payload = dict(payload)
+        payload = {"value": payload}
 
     recorder = get_current_run_recorder()
     if recorder is not None:
@@ -209,6 +208,21 @@ async def send_job_search_results(
     )
 
 
+async def send_saved_job_state(
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+    saved_job_state: SavedJobStatePayload,
+):
+    await send_result_event(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        result_type="saved_job_state",
+        payload=saved_job_state,
+    )
+
+
 async def send_artifact_event(
     websocket: WebSocket,
     run_id: str,
@@ -316,5 +330,14 @@ async def send_run_failed(
 def normalize_payload(payload) -> dict:
     if hasattr(payload, "to_payload"):
         return payload.to_payload()
+
+    if isinstance(payload, list):
+        return [normalize_payload(item) for item in payload]
+
+    if isinstance(payload, dict):
+        return {
+            key: normalize_payload(value)
+            for key, value in payload.items()
+        }
 
     return payload

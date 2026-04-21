@@ -61,7 +61,7 @@ def route_request(
     - Prefer direct_chat for simple messages like "hi", "hello", "thanks", or short conversational follow-ups like "did you see my last question?".
     - Do not choose direct_chat if the user asks to read local files, save files, analyse documents, generate structured outputs, or research a topic.
     - Choose fact_check for short factual questions that need current or externally verified information.
-    - Choose task_orchestrator for everything that is not a tiny conversational reply or a small factual verification request.
+    - Choose task_orchestrator for everything that is not a tiny conversational reply or a small factual verification request, including job search, job application, shortlist management, and other structured workflow requests.
 
     User request:
     ---

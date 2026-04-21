@@ -4,7 +4,8 @@ import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from src.app.router import handle_query
+from src.app.client_events import parse_run_action_payload, summarize_run_action
+from src.app.router import handle_action, handle_query
 from src.app.ws_events import send_acknowledgement, send_phase_changed, send_run_accepted, send_run_failed
 from src.config.InferenceProvider import InferenceProvider
 from src.config.LlamaCppPresetGenerator import generate_llama_cpp_presets
@@ -77,10 +78,74 @@ async def handle_socket_message(
         payload = json.loads(data)
         session_id = payload.get("session_id") or payload.get("sessionId") or 1
         event_kind = payload.get("event_kind", "")
+        incoming_run_id = payload.get("run_id") or payload.get("runId") or ""
+        if event_kind == "run.action" and incoming_run_id:
+            run_id = incoming_run_id
+            recorder.run_id = run_id
+
         payload_body = payload.get("payload", {})
         message = payload_body.get("message") or payload.get("message", "")
         recorder.session_id = session_id
-        recorder.user_message = message
+        recorder.user_message = message or event_kind
+
+        if event_kind == "run.action":
+            action_request = parse_run_action_payload(payload, payload_body)
+            action_summary = summarize_run_action(action_request)
+            silent_action = action_request.display_mode == "silent"
+            recorder.user_message = action_summary
+            conversation_history = conversation_manager.get_conversation_from_id(session_id)
+            conversation_history.append_message(
+                Message(
+                    role="user",
+                    content=action_summary,
+                ),
+            )
+
+            logger.info(
+                "Incoming websocket action kind: %s action_type=%s",
+                event_kind,
+                action_request.action_type,
+            )
+
+            if not action_request.action_type:
+                await send_run_failed(
+                    websocket=websocket,
+                    run_id=run_id,
+                    session_id=session_id,
+                    error="No run.action action_type was provided.",
+                )
+                return
+
+            if not silent_action:
+                await send_run_accepted(
+                    websocket=websocket,
+                    run_id=run_id,
+                    session_id=session_id,
+                    user_message=action_summary,
+                )
+                await send_phase_changed(
+                    websocket=websocket,
+                    run_id=run_id,
+                    session_id=session_id,
+                    phase="acknowledging",
+                    detail="Processing a run action request.",
+                )
+                await send_acknowledgement(
+                    websocket=websocket,
+                    run_id=run_id,
+                    session_id=session_id,
+                    text="Action received. Updating state.",
+                )
+
+            await handle_action(
+                action_request=action_request,
+                websocket=websocket,
+                run_id=run_id,
+                session_id=session_id,
+                conversation_history=conversation_history,
+                model_manager=model_manager,
+            )
+            return
 
         if not message:
             await send_run_failed(

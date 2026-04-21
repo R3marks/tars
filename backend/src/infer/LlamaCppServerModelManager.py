@@ -58,10 +58,11 @@ class LlamaCppServerModelManager(ModelManager):
         )
 
     def ensure_loaded(self, model: Model):
-        if self.current_loaded_model_name == model.name and self.is_model_loaded(model):
+        model_status = self.get_model_status(model)
+        if self.current_loaded_model_name == model.name and model_status == "loaded":
             return
 
-        if self.is_model_loaded(model):
+        if model_status == "loaded":
             logger.info("Model %s already loaded in llama-server", model.name)
             self.current_loaded_model_name = model.name
             return
@@ -73,24 +74,26 @@ class LlamaCppServerModelManager(ModelManager):
             timeout = 300,
         )
 
-        if not response.ok and self.is_model_loaded(model):
-            logger.info("Model %s was already active after load request", model.name)
-            self.current_loaded_model_name = model.name
-            return
+        if not response.ok:
+            model_status = self.get_model_status(model)
+            if model_status in {"loaded", "loading"}:
+                logger.info(
+                    "Model %s was already active with status %s after load request",
+                    model.name,
+                    model_status,
+                )
+            else:
+                response.raise_for_status()
 
-        response.raise_for_status()
-
-        model_loaded = False
-        while not model_loaded:
-            model_loaded = self.is_model_loaded(model)
-
-            if not model_loaded:
-                time.sleep(3)
+        self.wait_for_model_loaded(model)
 
         logger.info("Model %s loaded", model.name)
         self.current_loaded_model_name = model.name
 
     def is_model_loaded(self, model: Model) -> bool:
+        return self.get_model_status(model) == "loaded"
+
+    def get_model_status(self, model: Model) -> str:
         response = requests.get(
             f"{self.server.base_url}/models",
             timeout = 300,
@@ -103,10 +106,23 @@ class LlamaCppServerModelManager(ModelManager):
             if model_data["id"] != model_identifier:
                 continue
 
-            if model_data["status"]["value"] == "loaded":
-                return True
+            return model_data["status"]["value"]
 
-        return False
+        return ""
+
+    def wait_for_model_loaded(self, model: Model):
+        model_status = self.get_model_status(model)
+
+        while model_status == "loading":
+            time.sleep(1)
+            model_status = self.get_model_status(model)
+
+        if model_status == "loaded":
+            return
+
+        raise RuntimeError(
+            f"Model {model.name} did not reach loaded state. Final status: {model_status or 'unknown'}",
+        )
 
     def resolve_server_model_identifier(self, model: Model) -> str:
         return model.name or model.id
