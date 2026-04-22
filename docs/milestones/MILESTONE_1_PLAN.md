@@ -304,10 +304,10 @@ Ownership:
 
 Deliverables:
 
-- create `docs/MILESTONE_1_PLAN.md`
+- create `docs/milestones/MILESTONE_1_PLAN.md`
 - update `docs/START_HERE.md`
 - remove stale milestone references
-- delete outdated completed milestone plan docs, starting with `docs/MILESTONE_0_6_PLAN.md`
+- delete outdated completed milestone plan docs, starting with `docs/milestones/MILESTONE_0_6_PLAN.md` if it exists
 
 ### Phase 1: Contract and state foundation
 

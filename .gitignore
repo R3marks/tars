@@ -48,3 +48,5 @@ generated_application_answers.md
 personal/
 generated/
 backend/src/config/LocalSetup.json
+.codex/local/
+.codex/*.local.json

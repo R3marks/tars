@@ -108,7 +108,7 @@ Future passes can widen the matrix for:
 
 For the current best human-readable summary of what the benchmark work has already taught us, start with:
 
-- `docs/MODEL_TUNING_SUMMARY.md`
+- `docs/models/MODEL_TUNING_SUMMARY.md`
 
 ## Deep Dive Notes
 

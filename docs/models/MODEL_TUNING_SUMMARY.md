@@ -14,9 +14,9 @@ For raw benchmark artifacts, see:
 
 These findings came from one local reference workstation and should be re-benchmarked on other setups.
 
-- GPU: 8 GB VRAM class NVIDIA GPU
-- RAM: 32 GB class machine
-- CPU: 20 logical processors were visible to the process during the reference run
+The exact private machine profile is intentionally not recorded in this reusable project doc.
+
+For machine-specific inventory, use ignored/generated benchmark artifacts rather than committed documentation.
 
 ## Key Operational Lesson
 

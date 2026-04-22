@@ -19,7 +19,8 @@ These areas are shown in the tree, but not expanded:
 - `backend/src/app/api.py` is the live backend entry surface.
 - `backend/src/app/router.py` is the backend dispatch layer.
 - `backend/src/orchestration/request_router.py` selects direct chat, fact check, or task orchestration.
-- `backend/src/workflows/job_application/` is the first substantive domain workflow area.
+- `backend/src/workflows/job_search/` owns job discovery, job records, and job state actions.
+- `backend/src/workflows/job_application/` owns application material generation.
 - `generated/` is the durable output area for saved application bundles.
 - `personal/` is the local-only working area for prompts, inputs, archive material, and manual artifacts.
 
@@ -28,6 +29,9 @@ These areas are shown in the tree, but not expanded:
 ```text
 Tars/
 |-- .git/                              [excluded]
+|-- .codex/
+|   |-- README.md
+|   |-- mcp.json
 |-- .vscode/
 |   |-- launch.json
 |   |-- settings.json
@@ -38,6 +42,7 @@ Tars/
 |   |   |-- agents/
 |   |   |-- app/
 |   |   |   |-- api.py
+|   |   |   |-- client_events.py
 |   |   |   |-- main.py
 |   |   |   |-- router.py
 |   |   |   |-- result_payloads.py
@@ -47,16 +52,24 @@ Tars/
 |   |   |-- infer/
 |   |   |-- message_structures/
 |   |   |-- orchestration/
+|   |   |   |-- action_router.py
 |   |   |   |-- direct_chat.py
 |   |   |   |-- fact_check.py
 |   |   |   |-- generic_agent_flow.py
 |   |   |   |-- model_roles.py
 |   |   |   |-- request_router.py
+|   |   |   |-- task_agent_registry.py
 |   |   |   |-- task_orchestrator.py
 |   |   |   |-- __init__.py
 |   |   |-- services/
 |   |   |   |-- web_content_service.py
 |   |   |-- workflows/
+|   |   |   |-- job_search/
+|   |   |   |   |-- actions.py
+|   |   |   |   |-- job_state_service.py
+|   |   |   |   |-- models.py
+|   |   |   |   |-- workflow.py
+|   |   |   |   |-- __init__.py
 |   |   |   |-- job_application/
 |   |   |   |   |-- application_answers_package.py
 |   |   |   |   |-- cover_letter_package.py
@@ -81,10 +94,22 @@ Tars/
 |   |-- main.py
 |   |-- __init__.py
 |-- docs/
-|   |-- REPO_TREE.md
 |   |-- START_HERE.md
-|   |-- TARS_MILESTONES.md
-|   |-- Tars Design Doc.md
+|   |-- architecture/
+|   |   |-- REPO_TREE.md
+|   |   |-- Tars Design Doc.md
+|   |   |-- WEBSOCKET_EVENT_CONTRACT.md
+|   |-- milestones/
+|   |   |-- MILESTONE_1_PLAN.md
+|   |   |-- TARS_MILESTONES.md
+|   |-- models/
+|   |   |-- MODEL_BENCHMARK_WORKFLOW.md
+|   |   |-- MODEL_REGISTRY_WORKFLOW.md
+|   |   |-- MODEL_TUNING_SUMMARY.md
+|   |-- process/
+|   |   |-- CODE_STYLE.md
+|   |   |-- CODEX_DEVELOPMENT_WORKFLOW.md
+|   |   |-- LOCAL_SETUP_WORKFLOW.md
 |-- generated/
 |   |-- applications/
 |   |   |-- application-package/
@@ -107,6 +132,8 @@ Tars/
 |   |-- prompts/
 |   |   |-- prompts.txt
 |-- src/
+|   |-- JobResults/
+|   |   |-- JobResults.jsx
 |   |-- ChatMessage/
 |   |   |-- ChatMessage.css
 |   |   |-- ChatMessage.jsx
@@ -122,6 +149,8 @@ Tars/
 |   |-- App.jsx
 |   |-- index.css
 |   |-- index.jsx
+|   |-- jobContracts.js
+|   |-- runState.js
 |-- src-tauri/
 |   |-- capabilities/
 |   |   |-- default.json
@@ -136,6 +165,7 @@ Tars/
 |   |-- tauri.conf.json
 |   |-- vite.config.js
 |-- .gitignore
+|-- AGENTS.md
 |-- index.html
 |-- model-configs.ini
 |-- package-lock.json
@@ -161,5 +191,5 @@ Tars/
 
 ### Historical or planning references
 
-- `docs/Tars Design Doc.md`
-- `docs/TARS_MILESTONES.md`
+- `docs/architecture/Tars Design Doc.md`
+- `docs/milestones/TARS_MILESTONES.md`
