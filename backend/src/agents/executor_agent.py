@@ -1,96 +1,95 @@
 # src/agents/executor_agent.py
 import json
 import logging
-from typing import Dict, Any, List
+from typing import Any
 
+from src.agents.agent_utils import TOOL_MAP, TOOLS
 from src.config.Model import Model
 from src.infer.ModelManager import ModelManager
 from src.message_structures.message import Message
-from src.agents.agent_utils import TOOL_MAP, TOOLS
 
 logger = logging.getLogger("uvicorn.error")
 
 
 async def execute_step(
-        step_index: int,
-        step: Dict[str, Any],
-        steps: List[Dict[str, Any]],
-        context: List[Dict[str, Any]],
-        execution_results,
-        model: Model,
-        model_manager: ModelManager
-    ) -> str:
-        
-        step_names = [step["step"] for step in steps]
+    step_index: int,
+    step: dict[str, Any],
+    steps: list[dict[str, Any]],
+    context: list[dict[str, Any]],
+    execution_results,
+    model: Model,
+    model_manager: ModelManager,
+) -> str:
+    step_names = [step["step"] for step in steps]
 
-        logger.info(f"🗣️  Prompt provided to the executor agent: {step["prompt"]}")
+    logger.info("Prompt provided to the executor agent: %s", step["prompt"])
 
-        prompt = f"""
-        Given your position within a tree of agents, visualised like so:
-        ---
-        Layer 1: Expected Outcomes Agent generates `expected_outcomes`
-        for `expected_outcome` in expected_outcomes`:
+    prompt = f"""
+    Given your position within a tree of agents, visualised like so:
+    ---
+    Layer 1: Expected Outcomes Agent generates `expected_outcomes`
+    for `expected_outcome` in expected_outcomes`:
 
-            Layer 2: Planning Agent generates `steps` for execution
-            for `step` in `steps`:
-                
-                Layer 3: Execution Agent (you) executes each given `step`
+        Layer 2: Planning Agent generates `steps` for execution
+        for `step` in `steps`:
 
-        Layer 2: Decision Agent decides whether `expected_outcome` has been satisfied
-        ---
+            Layer 3: Execution Agent (you) executes each given `step`
 
-        The planning agent has already defined the following steps:
-        ---
-        {step_names}
-        ---
+    Layer 2: Decision Agent decides whether `expected_outcome` has been satisfied
+    ---
 
-        So far, you have already executed the following:
-        ---
-        {execution_results}
-        ---
+    The planning agent has already defined the following steps:
+    ---
+    {step_names}
+    ---
 
-        Given this context:
-        ---
-        {context}
-        ---
+    So far, you have already executed the following:
+    ---
+    {execution_results}
+    ---
 
-        Execute step {step_index}/{len(steps)} - {step["step"]}:
-        ***
-        {step["prompt"]}
-        ***
-        """
+    Given this context:
+    ---
+    {context}
+    ---
 
-        response = model_manager.ask_model(
-            model,
-            [Message(role="user", content=prompt)],
-            tools=TOOLS,
-            tool_choice="auto",
-        )
+    Execute step {step_index}/{len(steps)} - {step["step"]}:
+    ***
+    {step["prompt"]}
+    ***
+    """
 
-        if isinstance(response, str):
-            return response.strip()
+    response = model_manager.ask_model(
+        model,
+        [Message(role="user", content=prompt)],
+        tools=TOOLS,
+        tool_choice="auto",
+    )
 
-        for part in response:
-            if part.get("type") != "function":
-                continue
+    if isinstance(response, str):
+        return response.strip()
 
-            function = part["function"]
-            handler = TOOL_MAP.get(function["name"])
-            if not handler:
-                continue
+    for part in response:
+        if part.get("type") != "function":
+            continue
 
-            args = function["arguments"]
-            if isinstance(args, str):
-                args = json.loads(args)
+        function = part["function"]
+        handler = TOOL_MAP.get(function["name"])
+        if not handler:
+            continue
 
-            result = handler(**args)
-            logger.info(f"🔧 Tool call executed! {function["name"]}({args["path"]})")
+        arguments = function["arguments"]
+        if isinstance(arguments, str):
+            arguments = json.loads(arguments)
 
-            context.append({
-                 "function_executed": function["name"],
-                 "arguements_provided": args["path"]
-            })
+        result = handler(**arguments)
+        logger.info("Tool call executed: %s(%s)", function["name"], arguments)
 
-            return result
+        context.append({
+            "function_executed": function["name"],
+            "arguments_provided": arguments,
+        })
 
-        return ""
+        return result
+
+    return ""

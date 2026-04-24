@@ -1,10 +1,25 @@
-# src/agents/agent_utils.py
-import os
 import logging
 import json
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger("uvicorn.error")
+
+WORKSPACE_ROOT = Path(__file__).resolve().parents[3]
+
+
+def resolve_workspace_path(path: str) -> Path:
+    requested_path = Path(path).expanduser()
+    if not requested_path.is_absolute():
+        requested_path = WORKSPACE_ROOT / requested_path
+
+    resolved_path = requested_path.resolve()
+    try:
+        resolved_path.relative_to(WORKSPACE_ROOT)
+    except ValueError as error:
+        raise ValueError(f"Path must stay within workspace: {WORKSPACE_ROOT}") from error
+
+    return resolved_path
 
 
 # -------------------------
@@ -12,24 +27,56 @@ logger = logging.getLogger("uvicorn.error")
 # -------------------------
 
 def read_file(path: str) -> str:
-    if not os.path.exists(path):
-        return f"Error: File not found: {path}"
-
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
+        resolved_path = resolve_workspace_path(path)
+        if not resolved_path.exists():
+            return f"Error: File not found: {path}"
+
+        return resolved_path.read_text(encoding="utf-8")
     except Exception as e:
         return f"Error reading file: {e}"
 
 
 def write_file(path: str, content: str) -> str:
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-        return f"Wrote file: {path}"
+        resolved_path = resolve_workspace_path(path)
+        resolved_path.parent.mkdir(parents=True, exist_ok=True)
+        resolved_path.write_text(content, encoding="utf-8")
+        return f"Wrote file: {resolved_path.relative_to(WORKSPACE_ROOT)}"
     except Exception as e:
         return f"Error writing file: {e}"
+
+
+# -------------------------
+# Search tools
+# -------------------------
+
+def web_search(query: str, max_results: int = 5) -> str:
+    try:
+        from search.web_search import run_web_search
+    except Exception as error:
+        logger.exception("Could not import run_web_search")
+        return f"Error: web search is unavailable: {error}"
+
+    try:
+        results = run_web_search(query, max_results)
+    except Exception as error:
+        logger.exception("Web search failed for query: %s", query)
+        return f"Error: web search failed: {error}"
+
+    if not results:
+        return "No web search results were found."
+
+    formatted_results = []
+    for index, result in enumerate(results[:max_results], start=1):
+        title = str(result.get("title", "")).strip()
+        snippet = str(result.get("snippet", "")).strip()
+        url = str(result.get("url", "")).strip()
+        formatted_results.append(
+            f"[{index}] {title}\nSnippet: {snippet}\nURL: {url}",
+        )
+
+    return "\n\n".join(formatted_results)
 
 
 # -------------------------
@@ -91,6 +138,21 @@ TOOLS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web for current or external information.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" },
+                    "max_results": { "type": "integer", "minimum": 1, "maximum": 10 }
+                },
+                "required": ["query"]
+            }
+        }
+    },
 ]
 PLANNER_TOOLS = [
     {
@@ -127,5 +189,6 @@ PLANNER_TOOLS = [
 TOOL_MAP = {
     "read_file": read_file,
     "write_file": write_file,
+    "web_search": web_search,
     "plan_steps": plan_steps
 }

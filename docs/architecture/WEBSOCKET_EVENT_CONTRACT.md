@@ -1,17 +1,16 @@
 # WebSocket Event Contract
 
-This document locks phase 1 of milestone 0.6.
+This document defines the shared event envelope and lifecycle semantics for communication between the frontend and backend.
 
-It defines the shared event envelope and lifecycle semantics for communication between the frontend and backend.
-
-During the transition period, backend events may continue to include legacy `type` and `message` fields so the existing frontend remains functional.
+The current runtime intentionally avoids domain-specific payloads. The frontend renders a generic run lifecycle: acknowledgement, route, phase/progress, result, artifact, response, telemetry, and completion.
 
 ## Goals
 
 - keep WebSocket as the canonical transport
 - preserve TARS as the first visible acknowledgement
-- add stable typed metadata for runs, routing, progress, results, and completion
+- keep stable typed metadata for runs, routing, progress, results, artifacts, and completion
 - support frontend and backend work in parallel
+- avoid hardcoded domain payloads until they prove broadly reusable
 
 ## Envelope
 
@@ -33,35 +32,22 @@ Legacy compatibility fields may also be present:
 
 ## Client To Backend
 
-Phase 1 canonical request shape:
+Canonical request shape:
 
 ```json
 {
   "event_kind": "run.create",
   "session_id": 1,
   "payload": {
-    "message": "find frontend jobs in london"
-  }
-}
-```
-
-Milestone 1 also uses explicit action events:
-
-```json
-{
-  "event_kind": "run.action",
-  "session_id": 1,
-  "payload": {
-    "action_type": "job.prepare_application",
-    "job_slug": "example-company-senior-backend-engineer",
-    "artifact_types": ["cv", "cover_letter", "application_answers", "form_field_answers"]
+    "message": "read docs/START_HERE.md and summarize it"
   }
 }
 ```
 
 Transition compatibility:
 
-- the backend should still accept the current payload shape with `type`, `message`, and `sessionId`
+- the backend may still accept the older payload shape with `type`, `message`, and `sessionId`
+- `run.action` is not currently registered by the frontend runtime
 
 ## Backend To Frontend Event Kinds
 
@@ -99,6 +85,11 @@ Payload:
 - `reason`
 - optional `telemetry`
 
+Current route modes:
+
+- `direct_chat`
+- `task_orchestrator`
+
 Legacy compatibility:
 
 - `type = "route_decision"`
@@ -121,15 +112,15 @@ Curated progress update for operator visibility.
 Payload:
 
 - `status`
-- optional structured details relevant to the update
+- optional structured `details`
 - optional `telemetry`
 
-Recommended structured detail fields for long-running skill work:
+Recommended generic detail fields:
 
-- `artifact_type`
 - `current_task`
 - `step_label`
-- optional step-specific metadata such as `review_pass` or `sections_selected`
+- `tool_name`
+- optional step-specific metadata
 
 Legacy compatibility:
 
@@ -138,7 +129,7 @@ Legacy compatibility:
 
 ### `run.result`
 
-Structured non-artifact result such as workflow summary or future job-search results.
+Structured non-artifact result.
 
 Payload:
 
@@ -146,14 +137,13 @@ Payload:
 - result-specific fields
 - optional `telemetry`
 
-Canonical `result_type` values currently prepared on the backend:
+Canonical `result_type` values currently used or reserved:
 
 - `task_agent_selection`
+- `partial_result`
 - `skill_result`
 - `workflow_summary`
-- `partial_result`
-- `job_search_results`
-- `saved_job_state`
+- `tool_result`
 
 ### `run.artifact`
 
@@ -167,15 +157,7 @@ Payload:
 - optional `label`
 - optional `telemetry`
 
-Current artifact types emitted or reserved:
-
-- `cv`
-- `cover_letter`
-- `application_answers`
-- `form_field_answers`
-- `review_package`
-- `job_posting`
-- `application_fields`
+Artifact types should be generic unless a stable domain abstraction has been approved.
 
 ### `assistant.response.delta`
 
@@ -205,6 +187,91 @@ Legacy compatibility:
 
 - `type = "final"`
 - `message = "[DONE]"`
+
+### `run.failed`
+
+The run finished with a recoverable user-facing failure.
+
+Payload:
+
+- `error`
+- optional `detail`
+- optional `telemetry`
+
+Legacy compatibility:
+
+- `type = "error"`
+- `message = <error>`
+
+## Lifecycle Order
+
+Normal lifecycle:
+
+1. `run.accepted`
+2. `assistant.acknowledgement`
+3. `run.routed`
+4. zero or more `run.phase`
+5. zero or more `run.progress`
+6. zero or more `run.result`
+7. zero or more `run.artifact`
+8. zero or more `assistant.response.delta`
+9. `run.completed`
+
+Failure lifecycle:
+
+1. `run.accepted`
+2. optional `assistant.acknowledgement`
+3. optional route, phase, progress, result, or artifact events
+4. `run.failed`
+
+## Canonical Result Payloads
+
+### `task_agent_selection`
+
+```json
+{
+  "result_type": "task_agent_selection",
+  "agent_name": "generic_task_agent",
+  "reason": "The request needs tool-backed work."
+}
+```
+
+### `partial_result`
+
+```json
+{
+  "result_type": "partial_result",
+  "status": "blocked",
+  "expected_outcome": "Read the requested file"
+}
+```
+
+### `skill_result`
+
+```json
+{
+  "result_type": "skill_result",
+  "artifact_type": "analysis",
+  "status": "completed",
+  "summary": "Completed the requested analysis.",
+  "missing_inputs": [],
+  "review_notes": [],
+  "change_summary": []
+}
+```
+
+### `workflow_summary`
+
+```json
+{
+  "result_type": "workflow_summary",
+  "summary": "Completed the generic agent workflow.",
+  "changed": [],
+  "blocked": [],
+  "needs_review": [],
+  "output_paths": []
+}
+```
 
 ## Telemetry Shape Notes
 
@@ -243,201 +310,8 @@ Current usage telemetry can include:
 - `total_tokens`
 - `tokens_per_second`
 
-### `run.failed`
+## Notes
 
-The run finished with a recoverable user-facing failure.
-
-Payload:
-
-- `error`
-- optional `detail`
-- optional `telemetry`
-
-Legacy compatibility:
-
-- `type = "error"`
-- `message = <error>`
-
-## Lifecycle Order
-
-Normal lifecycle:
-
-1. `run.accepted`
-2. `assistant.acknowledgement`
-3. `run.routed`
-4. zero or more `run.phase`
-5. zero or more `run.progress`
-6. zero or more `run.result`
-7. zero or more `run.artifact`
-8. zero or more `assistant.response.delta`
-9. `run.completed`
-
-Failure lifecycle:
-
-1. `run.accepted`
-2. optional `assistant.acknowledgement`
-3. optional route, phase, progress, result, or artifact events
-4. `run.failed`
-
-## Phase 1 Notes
-
-- phase 1 locks the envelope and event kinds
-- phase 1 does not require the frontend to consume every new field yet
-- legacy event fields remain temporarily for compatibility
-- telemetry is informational and should be treated as optional by the frontend
-- future milestone 1 job-search results should be emitted through `run.result`
-
-## Canonical Result Payloads
-
-## Canonical Progress Payload Shape
-
-Example:
-
-```json
-{
-  "status": "CV package: drafting profile summary and skills",
-  "details": {
-    "artifact_type": "cv",
-    "current_task": "drafting_profile_sections",
-    "step_label": "CV package: drafting profile summary and skills"
-  }
-}
-```
-
-### `task_agent_selection`
-
-```json
-{
-  "result_type": "task_agent_selection",
-  "agent_name": "job_application_agent",
-  "reason": "The request is about preparing a job application."
-}
-```
-
-### `skill_result`
-
-```json
-{
-  "result_type": "skill_result",
-  "artifact_type": "cv",
-  "status": "completed",
-  "summary": "Saved a tailored CV draft.",
-  "missing_inputs": [],
-  "review_notes": ["Draft created."],
-  "change_summary": ["updated the opening summary"]
-}
-```
-
-### `workflow_summary`
-
-```json
-{
-  "result_type": "workflow_summary",
-  "summary": "Workflow summary: generated or updated artifacts",
-  "changed": ["updated the opening summary"],
-  "blocked": [],
-  "needs_review": ["cover_letter"],
-  "output_paths": ["generated/applications/example/generated_cv.html"]
-}
-```
-
-### `job_search_results`
-
-```json
-{
-  "result_type": "job_search_results",
-  "query_summary": "Frontend roles in London focused on React and product design systems.",
-  "search_spec": {
-    "query": "search for frontend jobs in london",
-    "summary": "Job search for frontend roles in London",
-    "keywords": ["frontend", "react"],
-    "location": "London",
-    "remote_preference": "",
-    "seniority": "",
-    "company_names": [],
-    "exact_urls": [],
-    "preferred_boards": ["greenhouse", "lever", "ashby"],
-    "limit": 10
-  },
-  "matches": [
-    {
-      "job_slug": "example-co-senior-frontend-engineer-london",
-      "title": "Senior Frontend Engineer",
-      "company": "Example Co",
-      "location": "London",
-      "source": "greenhouse",
-      "summary": "React, TypeScript, design-system work.",
-      "url": "https://example.com/jobs/1",
-      "source_url": "https://example.com/jobs/1",
-      "state": "discovered",
-      "score": 4.5,
-      "suitability_label": "strong_match",
-      "suitability_rationale": "matched frontend, react; location fit: London",
-      "actions": [
-        {
-          "action_type": "job.save",
-          "label": "Save job",
-          "job_slug": "example-co-senior-frontend-engineer-london"
-        },
-        {
-          "action_type": "job.prepare_application",
-          "label": "Prepare application",
-          "job_slug": "example-co-senior-frontend-engineer-london",
-          "artifact_types": ["cv", "cover_letter", "application_answers", "form_field_answers"]
-        }
-      ],
-      "view_blocks": [
-        {
-          "block_type": "job_card",
-          "title": "Senior Frontend Engineer",
-          "summary": "React, TypeScript, design-system work."
-        }
-      ]
-    }
-  ],
-  "total_matches": 1,
-  "recommendation_summary": "Strong overlap with frontend product work.",
-  "actions": [
-    {
-      "action_type": "job.save",
-      "label": "Save all",
-      "job_slugs": ["example-co-senior-frontend-engineer-london"]
-    }
-  ],
-  "view_blocks": [
-    {
-      "block_type": "status_summary",
-      "title": "Job Search Summary",
-      "summary": "Strong overlap with frontend product work."
-    },
-    {
-      "block_type": "job_list",
-      "title": "Matches"
-    }
-  ]
-}
-```
-
-### `saved_job_state`
-
-```json
-{
-  "result_type": "saved_job_state",
-  "job_slug": "example-co-senior-frontend-engineer-london",
-  "state": "selected_for_draft",
-  "previous_state": "saved",
-  "title": "Senior Frontend Engineer",
-  "company": "Example Co",
-  "location": "London",
-  "source": "greenhouse",
-  "source_url": "https://example.com/jobs/1",
-  "summary": "React, TypeScript, design-system work.",
-  "output_paths": [
-    "generated/jobs/example-co-senior-frontend-engineer-london/job_lead.json"
-  ],
-  "job_record": {
-    "job_slug": "example-co-senior-frontend-engineer-london",
-    "state": "selected_for_draft"
-  }
-}
-```
+- The contract is currently generic by design.
+- Domain-specific result payloads should be added only after the generic agent loop cannot reasonably handle the use case with better tools and prompts.
+- Legacy event fields remain temporarily for compatibility.

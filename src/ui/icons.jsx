@@ -91,15 +91,6 @@ export function WorkflowIcon({ className = "" }) {
   );
 }
 
-export function JobIcon({ className = "" }) {
-  return (
-    <svg viewBox="0 0 24 24" className={iconClass(className)} aria-hidden="true">
-      <rect x="5" y="8" width="14" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M9 8V6h6v2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export function ArtifactIcon({ className = "" }) {
   return (
     <svg viewBox="0 0 24 24" className={iconClass(className)} aria-hidden="true">
@@ -147,10 +138,11 @@ export function StatusIcon({ className = "" }) {
   );
 }
 
-export function JobActionIcon({ className = "" }) {
+export function ToolIcon({ className = "" }) {
   return (
     <svg viewBox="0 0 24 24" className={iconClass(className)} aria-hidden="true">
-      <path d="M7 12h10M12 7v10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M14 6l4 4-8 8H6v-4z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M12 8l4 4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </svg>
   );
 }
@@ -165,13 +157,12 @@ export const ICONS_BY_NAME = {
   agent: AgentIcon,
   skill: SkillIcon,
   workflow: WorkflowIcon,
-  job: JobIcon,
   artifact: ArtifactIcon,
   save: SaveIcon,
   select: SelectIcon,
   prepare: PrepareIcon,
   status: StatusIcon,
-  jobAction: JobActionIcon,
+  tool: ToolIcon,
 };
 
 export function AppIcon({ name, className = "" }) {

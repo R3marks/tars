@@ -72,7 +72,7 @@ function buildActiveRunMeta(activeRun, nowMs) {
   return items;
 }
 
-export default function ChatWindow({ runs, activeRun, activeRunExists, onRunAction }) {
+export default function ChatWindow({ runs, activeRun, activeRunExists }) {
   const chatWindowRef = useRef(null);
   const activeReasoningRef = useRef(null);
   const previousRunCountRef = useRef(runs.length);
@@ -139,7 +139,7 @@ export default function ChatWindow({ runs, activeRun, activeRunExists, onRunActi
     <section className="chat-window" ref={chatWindowRef}>
       <div className="chat-content">
         {runs.map((run) => (
-          <ChatMessage key={run.runId || run.localId} run={run} onRunAction={onRunAction} />
+          <ChatMessage key={run.runId || run.localId} run={run} />
         ))}
 
         {activeRunExists ? (

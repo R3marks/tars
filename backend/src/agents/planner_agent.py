@@ -60,7 +60,7 @@ async def plan_for_outcome(
     - Avoid redundant steps.
     - Create steps only if new information is required.
     - If the outcome is already satisfied return no steps.
-    - Executor agents have access to the following tools: [`read_file`, `write_file`]. Clearly instruct the executor agents when to use tools and when to respond without tool calls by **explicitly telling them not to use tools within the prompt**
+    - Executor agents have access to the following tools: [`read_file`, `write_file`, `web_search`]. Clearly instruct the executor agents when to use tools and when to respond without tool calls by **explicitly telling them not to use tools within the prompt**
 
     Return steps using plan_steps.
     """

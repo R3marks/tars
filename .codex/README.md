@@ -17,17 +17,22 @@ This folder contains project-level Codex guidance and local tool configuration f
 }
 ```
 
-After Codex is restarted with this MCP config loaded, frontend work should use Chrome DevTools MCP to:
-
-- inspect the running app
-- read console errors
-- check network requests
-- take screenshots
-- verify UI changes interactively
-
-If the MCP server is unavailable in a session, say so and fall back to `npm run build`, logs, and user screenshots.
+Frontend live testing expectations live in `docs/process/LIVE_APP_TESTING.md`.
 
 Frontend review expectations live in `docs/process/REVIEW.md`.
+
+## MCP Approval Prompts
+
+MCP tool-call approval is controlled by Codex itself, not by this repo's `.codex/mcp.json`.
+
+The user-level Codex config is expected to include:
+
+```toml
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+```
+
+That setting lives in `~/.codex/config.toml` and may require restarting Codex or opening a new chat before it fully applies. If Chrome DevTools MCP still prompts, use the approval dialog's "do not ask again" / "allow always" option when it appears; plain "allow" is session-local and may not persist.
 
 ## Local Overrides
 

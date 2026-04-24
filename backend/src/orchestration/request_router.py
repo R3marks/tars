@@ -22,7 +22,6 @@ ROUTE_TOOLS = [
                         "type": "string",
                         "enum": [
                             "direct_chat",
-                            "fact_check",
                             "task_orchestrator",
                         ],
                     },
@@ -54,14 +53,12 @@ def route_request(
 
     Choose exactly one mode:
     - direct_chat: use this for greetings, short conversational replies, and small follow-up messages that should be answered from the recent conversation only.
-    - fact_check: use this for factual questions where freshness matters or might matter, especially anything involving current roles, recent events, "today", "current", "latest", or facts that can be verified quickly with a web search.
-    - task_orchestrator: use this for all non-trivial tasks that should be delegated to registered task agents.
+    - task_orchestrator: use this for every substantive request, including research, file work, coding, analysis, planning, or any request that may benefit from tools.
 
     Rules:
     - Prefer direct_chat for simple messages like "hi", "hello", "thanks", or short conversational follow-ups like "did you see my last question?".
-    - Do not choose direct_chat if the user asks to read local files, save files, analyse documents, generate structured outputs, or research a topic.
-    - Choose fact_check for short factual questions that need current or externally verified information.
-    - Choose task_orchestrator for everything that is not a tiny conversational reply or a small factual verification request, including job search, job application, shortlist management, and other structured workflow requests.
+    - Do not choose direct_chat if the user asks to read local files, save files, analyse documents, research a topic, write code, execute code, or perform multi-step work.
+    - Choose task_orchestrator for everything that is not a tiny conversational reply.
 
     User request:
     ---

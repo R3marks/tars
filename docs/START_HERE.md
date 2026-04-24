@@ -2,70 +2,132 @@
 
 This is the fastest context path for future TARS sessions.
 
-Read only what is relevant to the current task, but use this file as the index.
+Use this file as the first five minutes of context. Read the smallest set that lets you act safely, then pull in deeper docs only when the task needs them.
 
-## First Read
+## Current Snapshot
+
+TARS is a local-first personal AI assistant with:
+
+- React/Tauri frontend in `src/` and `src-tauri/`
+- Python backend in `backend/src/`
+- local `llama.cpp` model runtime support
+- a general-purpose agentic runtime built around direct chat plus a generic tool-using agent
+
+The next useful product loop is:
+
+1. talk to TARS naturally
+2. route tiny conversational turns to direct chat
+3. route substantive work to the legacy generic agent
+4. let the generic agent use broad tools such as file I/O and web search
+5. harden the generic loop before creating new domain workflows
+
+Prefer the modular monolith shape:
+
+- `backend/src/app/` for transport and websocket boundaries
+- `backend/src/orchestration/` for routing and task-agent selection
+- `backend/src/agents/` for the legacy generic planner/executor agent loop
+- `backend/src/workflows/<domain>/` only for future domain workflows that are clearly worth the abstraction
+- `src/` for deterministic rendering of typed backend payloads
+- `generated/` for durable generated artifacts
+- `personal/` for ignored local-only inputs and scratch work
+
+## Always Read
 
 - `AGENTS.md`
-  - Root Codex instructions: project shape, working rules, architecture direction, and testing defaults.
+  - Root agent instructions, product direction, architecture boundaries, and testing defaults.
 - `docs/process/CODE_STYLE.md`
-  - Required before coding. Captures naming, control-flow, backend, and frontend style preferences.
-- `docs/process/CODEX_DEVELOPMENT_WORKFLOW.md`
-  - Required before planning larger work. Captures how milestones, parallel threads, frontend/backend splits, and subagent delegation should work.
+  - Naming, control-flow, backend, frontend, and comment style.
 - `docs/process/REVIEW.md`
-  - Required before saying changes are ready. Captures security, privacy, portability, E2E, docs, and push review gates.
+  - Required before saying changes are ready or asking the user to commit/push.
 
-## Product And Milestones
+## If You Enter A Dirty Worktree
 
+First determine whether the current changes are the task.
+
+1. Run `git status --short`.
+2. Inspect the staged or unstaged diff before editing.
+3. Preserve user changes unless explicitly asked to revert them.
+4. If the worktree is docs-only, use the docs-only review path in `docs/process/REVIEW.md`.
+5. If committing or pushing, ask for explicit confirmation unless the user has already requested it.
+
+If Git reports dubious ownership in this sandbox, use a per-command override:
+
+```powershell
+git -c safe.directory=<repo-path> status --short
+```
+
+Do not change global Git config just to inspect the repo.
+
+## Choose The Next Docs By Task
+
+### Planning Or Larger Work
+
+- `docs/process/CODEX_DEVELOPMENT_WORKFLOW.md`
+  - Collaboration loop, milestone planning shape, and parallel thread boundaries.
 - `docs/milestones/TARS_MILESTONES.md`
-  - Strategic roadmap. Read this to understand what TARS is becoming and how milestones relate.
+  - Strategic roadmap.
 - `docs/milestones/MILESTONE_1_PLAN.md`
-  - Current active milestone plan. Read this before working on job search, job management, or application preparation.
-- `docs/architecture/Tars Design Doc.md`
-  - Product philosophy and original assistant vision. Read this when making UX, personality, or interaction-design choices.
-
-## Architecture
-
-- `docs/architecture/REPO_TREE.md`
-  - High-level repo map. Read this when you need to orient quickly or understand active vs generated vs personal areas.
+  - Current product scope: generic agent capability, tool use, and code execution.
 - `docs/architecture/WEBSOCKET_EVENT_CONTRACT.md`
-  - Backend/frontend event contract. Required when changing websocket events, structured results, telemetry, actions, artifacts, or frontend-rendered payloads.
+  - Required if changing websocket events, typed results, actions, artifacts, or frontend-rendered payloads.
+- `docs/architecture/REPO_TREE.md`
+  - Repo map and active runtime areas.
 
-## Local Model Runtime
+### Frontend Work
 
-- `docs/models/MODEL_TUNING_SUMMARY.md`
-  - Human-readable model benchmark conclusions. Read this before changing model roles, llama.cpp settings, or runtime defaults.
-- `docs/models/MODEL_REGISTRY_WORKFLOW.md`
-  - Read this before editing model registry/config generation.
-- `docs/models/MODEL_BENCHMARK_WORKFLOW.md`
-  - Read this before benchmarking models or changing benchmark scripts.
-- `docs/process/LOCAL_SETUP_WORKFLOW.md`
-  - Read this before changing machine-specific setup, local config, or generated llama-server presets.
+- `docs/process/CODEX_DEVELOPMENT_WORKFLOW.md`
+  - Frontend workflow and review expectations.
+- `docs/architecture/WEBSOCKET_EVENT_CONTRACT.md`
+  - Typed event and result payload contract.
+- `.codex/README.md`
+  - Chrome DevTools MCP setup and fallback expectations.
+- `docs/process/LIVE_APP_TESTING.md`
+  - Source of truth for live app startup, browser tooling, and inspection checklist.
+- `docs/process/LIVE_TEST_PROMPTS.md`
+  - Reusable live test prompts for Chrome MCP approval hygiene.
 
-## Live Runtime Entry Points
-
-Read these when backend flow matters:
-
-- `backend/src/app/api.py`
-- `backend/src/app/router.py`
-- `backend/src/orchestration/request_router.py`
-- `backend/src/orchestration/task_agent_registry.py`
-- `backend/src/orchestration/action_router.py`
-
-Read these when milestone 1 job-domain flow matters:
-
-- `backend/src/workflows/job_search/workflow.py`
-- `backend/src/workflows/job_search/actions.py`
-- `backend/src/workflows/job_search/job_state_service.py`
-- `backend/src/workflows/job_application/workflow.py`
-
-## Frontend Entry Points
-
-Read these when frontend rendering or interaction matters:
+Use these entry points first:
 
 - `src/App.jsx`
 - `src/runState.js`
 - `src/ChatWindow/ChatWindow.jsx`
 - `src/ChatMessage/ChatMessage.jsx`
-- `src/JobResults/JobResults.jsx`
-- `src/jobContracts.js`
+
+For live app inspection, follow `docs/process/LIVE_APP_TESTING.md` and use the fixed prompts in `docs/process/LIVE_TEST_PROMPTS.md`.
+
+### Backend Flow Work
+
+- `docs/process/CODEX_DEVELOPMENT_WORKFLOW.md`
+  - Backend boundaries and verification defaults.
+- `docs/architecture/WEBSOCKET_EVENT_CONTRACT.md`
+  - Required if frontend-visible payloads change.
+
+Use these entry points first:
+
+- `backend/src/app/api.py`
+- `backend/src/app/router.py`
+- `backend/src/orchestration/request_router.py`
+- `backend/src/orchestration/task_agent_registry.py`
+- `backend/src/orchestration/task_orchestrator.py`
+- `backend/src/orchestration/generic_agent_flow.py`
+- `backend/src/agents/agent_utils.py`
+- `backend/src/agents/planner_agent.py`
+- `backend/src/agents/executor_agent.py`
+
+### Model Runtime Work
+
+- `docs/models/MODEL_TUNING_SUMMARY.md`
+  - Benchmark conclusions and model-role defaults.
+- `docs/models/MODEL_REGISTRY_WORKFLOW.md`
+  - Registry and config generation workflow.
+- `docs/models/MODEL_BENCHMARK_WORKFLOW.md`
+  - Benchmark commands and generated artifacts.
+- `docs/process/LOCAL_SETUP_WORKFLOW.md`
+  - Machine-specific setup boundaries.
+
+### Product Voice Or UX Direction
+
+- `docs/architecture/Tars Design Doc.md`
+  - Original assistant vision and interaction philosophy.
+- `AGENTS.md`
+  - Concise current voice and product guardrails.

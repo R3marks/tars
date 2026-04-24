@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket
 
-from src.app.result_payloads import JobSearchResultsPayload, SavedJobStatePayload
 from src.telemetry.run_telemetry import get_current_run_recorder
 
 PROTOCOL_VERSION = "0.6"
@@ -190,36 +189,6 @@ async def send_result_event(
         },
         legacy_type=legacy_type,
         legacy_message=legacy_message,
-    )
-
-
-async def send_job_search_results(
-    websocket: WebSocket,
-    run_id: str,
-    session_id: int,
-    job_search_results: JobSearchResultsPayload,
-):
-    await send_result_event(
-        websocket=websocket,
-        run_id=run_id,
-        session_id=session_id,
-        result_type="job_search_results",
-        payload=job_search_results,
-    )
-
-
-async def send_saved_job_state(
-    websocket: WebSocket,
-    run_id: str,
-    session_id: int,
-    saved_job_state: SavedJobStatePayload,
-):
-    await send_result_event(
-        websocket=websocket,
-        run_id=run_id,
-        session_id=session_id,
-        result_type="saved_job_state",
-        payload=saved_job_state,
     )
 
 

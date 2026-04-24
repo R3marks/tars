@@ -1,440 +1,148 @@
-# Milestone 1 Plan
+# Milestone 1 Plan: Generic Agent Workbench
 
-Milestone 1 is the first real product milestone after the repo, protocol, and runtime groundwork from milestones 0, 0.5, and 0.6.
+Milestone 1 has been reset away from bespoke job-search, job-application, and interview-prep workflows.
 
-Its goal is to ship the first end-to-end job-domain use case:
+The product lesson from the removed prototype is simple: hardcoded domain flows become brittle quickly. TARS should first become a stronger general-purpose local assistant that can reason, inspect context, use tools, write code, execute code, verify results, and explain what happened.
 
-1. TARS accepts a natural-language job search brief
-2. a job-search orchestrator turns that brief into a structured search spec
-3. ATS-board-first workers search and extract jobs in parallel
-4. TARS scores suitability, saves reusable job records, and returns a selectable job list
-5. the user chooses one or more jobs to draft for
-6. the existing job-application workflow consumes the saved job record and produces CV, cover letter, and answer artifacts plus review views
-
-This milestone does not include the full scrum-board-style application manager UI yet.
-It does, however, introduce the file-backed job and application state model that a later board can render.
+## Product Direction
 
-## Summary
-
-Milestone 1 will deepen TARS into two related job-domain flows:
-
-- `job_search`
-  - search for roles from a conversational brief
-  - assess suitability
-  - persist normalized job records
-  - emit structured selectable results to the frontend
-- `job_application`
-  - accept a saved job slug or saved job record as input
-  - reuse the existing drafting pipeline
-  - emit clearer draft review artifacts and comparison data
+The core loop is now:
 
-Milestone 1 should make TARS feel like a real job-hunting assistant rather than a CV-generation demo.
+1. User talks to TARS normally.
+2. Router chooses either `direct_chat` or the generic task agent.
+3. The generic task agent plans the work, uses broad tools, and produces a normal conversational answer.
+4. The frontend renders the run lifecycle clearly without domain-specific UI.
+5. Codex and the user improve the generic loop through live app tests.
 
-## Product Decisions Locked
+The aim is not to build a workflow for every domain. The aim is to make the generic agent capable enough that domains emerge from prompts, tools, files, and code rather than from one-off backend branches.
 
-- Milestone 1 scope is `search -> select -> draft`
-- persistence stays file-backed for now
-- search scope is ATS-board-first, not broad open-web search
-- ATS-board-first may fall back to stable public job feeds when board discovery returns nothing
-- backend plans UI blocks and actions
-- frontend remains a deterministic renderer of typed view models
-- the full application manager board is deferred until after the first shippable slice works cleanly
+## Current Runtime Shape
 
-## Domain Architecture
+- `backend/src/app/`
+  - WebSocket transport, run lifecycle events, model runtime setup.
+- `backend/src/orchestration/request_router.py`
+  - Chooses `direct_chat` or `task_orchestrator`.
+- `backend/src/orchestration/task_orchestrator.py`
+  - Selects and runs the registered task agent.
+- `backend/src/orchestration/task_agent_registry.py`
+  - Currently registers only `generic_task_agent`.
+- `backend/src/orchestration/generic_agent_flow.py`
+  - Legacy expected-outcomes, planner, executor, verifier, final-response loop.
+- `backend/src/agents/`
+  - Generic planner/executor tools.
+- `src/`
+  - Generic chat/run UI with acknowledgement, route, phase, results, artifacts, response, telemetry.
 
-Milestone 1 should introduce a sibling workflow to `job_application`, not force job search into the existing application workflow.
+Removed from runtime:
 
-### New orchestration roles
+- hardcoded job-search workflow
+- hardcoded job-application workflow
+- hardcoded interview-prep workflow
+- job/interview-specific frontend renderers
+- job/interview run actions
 
-- `job_search_orchestrator`
-  - parses the user brief into a structured search spec
-  - fans out provider searches and suitability workers
-  - reviews, deduplicates, ranks, and persists job results
-- `job_application_orchestrator`
-  - continues the existing drafting flow
-  - now accepts a saved job slug or saved job path as input
-  - rebuilds its context from persisted job records before drafting
-- `job_state_service`
-  - owns file-backed persistence and status transitions
-  - serializes writes so parallel workers do not stomp on shared state
+## Milestone 1 Goals
 
-### Task routing changes
+### 1. Make The Generic Agent Useful
 
-The task orchestrator should be able to choose among:
+Improve the existing generic flow before adding new domain agents.
 
-- `job_search_agent`
-- `job_application_agent`
-- `generic_task_agent`
+Near-term capabilities:
 
-Initial split:
+- reliable file reading
+- safe file writing
+- web search
+- code writing
+- code execution in a bounded workspace
+- concise result synthesis
+- better failure recovery when a step returns weak evidence
 
-- search, suitability, saving, ranking = `job_search`
-- drafting, tailoring, review package generation = `job_application`
+### 2. Add Code Execution As The Main Tool
 
-### Registry-based implementation seam
+Coding is the highest-leverage capability for this assistant.
 
-Milestone 1 should avoid letting transport and orchestration files become domain-specific catch-alls.
+The next major tool should let TARS:
 
-Current MVP shape:
+- create a small scratch script
+- run it
+- inspect stdout/stderr
+- revise it when needed
+- summarize the result
 
-- `app/api.py`
-  - websocket transport only
-  - parses client envelopes
-  - delegates `run.create` and `run.action`
-  - should not know job-domain fields directly
-- `app/client_events.py`
-  - normalizes client event payloads into typed backend request objects
-- `orchestration/task_agent_registry.py`
-  - owns registered task agents, descriptions, routing rules, and agent execution
-  - adding `job_manager_agent` should happen here, not by growing `task_orchestrator.py`
-- `orchestration/action_router.py`
-  - routes `run.action` by action namespace such as `job.*`
-  - adding new action families should register a new namespace handler
-- `workflows/<domain>/actions.py`
-  - owns domain-specific action handling
-  - job state transitions and saved-job application handoff live with `job_search`, not in the top-level task orchestrator
+Initial implementation should be conservative:
 
-## Storage and Persistence
+- execute only inside an approved scratch/generated workspace
+- surface commands and outputs in the run log
+- keep destructive filesystem actions blocked or approval-gated
+- prefer short-lived scripts over persistent hidden state
 
-Milestone 1 stays file-backed.
+### 3. Keep The UI Generic
 
-### Canonical storage layout
+The frontend should stay focused on run comprehension:
 
-- `generated/jobs/catalog.json`
-  - index of all discovered jobs and their current state
-- `generated/jobs/<job_slug>/job_lead.json`
-  - normalized saved job record
-- `generated/jobs/<job_slug>/job_posting.md`
-  - extracted posting body and source capture
-- `generated/jobs/<job_slug>/suitability.json`
-  - structured suitability assessment and rationale
-- `generated/applications/<job_slug>/...`
-  - generated CV, cover letter, answers, and review package outputs using the existing application output pattern
+- what the user asked
+- what route was selected
+- what phases occurred
+- what tool/result/artifact events were produced
+- what TARS ultimately answered
 
-### Milestone 1 statuses
+Do not add domain-specific cards until a result type is stable and broadly reusable.
 
-- `discovered`
-- `saved`
-- `selected_for_draft`
-- `draft_ready`
+### 4. Improve Tool Contracts
 
-Reserve but do not implement the full lifecycle UI for:
+Tool calls should be understandable and inspectable.
 
-- `applied`
-- `rejected`
-- `interviewing`
-- `offer`
+Useful generic result types:
 
-The job-application workflow should accept a saved job slug or saved job path and rebuild its application context from the persisted lead, posting, and suitability files before drafting.
+- `task_agent_selection`
+- `partial_result`
+- `tool_result`
+- `workflow_summary`
+- `artifact`
 
-## Search System
+Avoid domain-specific payloads such as job cards, saved job state, mock interview turns, or application packages for now.
 
-The first robust search surface should target ATS boards first:
+### 5. Test Through The App
 
-- Greenhouse
-- Lever
-- Ashby
+Every non-trivial agent change should be tested in the live UI with stable prompts.
 
-If ATS-board discovery returns nothing, the workflow may fall back to public structured feeds so the operator still gets usable selectable results while the search layer continues to mature.
+Minimum checks:
 
-### Search pipeline
+- direct chat prompt routes to `direct_chat`
+- substantive prompt routes to `task_orchestrator`
+- generic agent can answer a file/tool question
+- generic agent can do a small web-search-backed answer
+- after code execution exists, generic agent can write and run a tiny script
 
-1. parse the user brief into `SearchSpec`
-   - if the brief is vague, infer a lightweight default spec from the candidate profile inputs already available locally
-2. query ATS providers in parallel
-   - if ATS discovery fails or returns nothing, query public structured job feeds as a fallback
-3. normalize results into a common `JobLead`
-4. dedupe by source URL plus company plus title plus location
-5. fetch and extract fuller job pages where needed
-6. run suitability review in parallel against normalized leads
-7. orchestrator reviews and ranks results
-8. persist records and emit structured UI-ready results
+## Stable Test Prompts
 
-### Parallelism policy
+Keep these in `docs/process/LIVE_TEST_PROMPTS.md`:
 
-- provider fetches can run concurrently
-- suitability reviews can run in slot-limited batches on the same loaded worker model
-- all persistence writes go through `job_state_service`
-- no concurrent writes to the same job folder
-- artifact generation remains serialized per selected job
+- `hello TARS, give me a one sentence status check`
+- `search the web for the latest stable Python version and summarize what you found in one paragraph`
+- `read docs/START_HERE.md and tell me the current product direction in three bullets`
 
-## Model Defaults
+After code execution lands:
 
-Milestone 1 should use the results from milestone 0.6 rather than ad hoc defaults.
+- `write and run a tiny Python script that prints the first five square numbers`
 
-- acknowledgement model
-  - `Qwen 3.5 4B Q4`
-- router and fast worker model
-  - `Qwen 3.5 4B Q6`
-  - `Gemma 4 E2B` is also a strong read-heavy worker candidate
-- search and application orchestrator review model
-  - `Qwen 3.5 35B A3B`
-- drafting review and deeper synthesis model
-  - `Qwen 3.5 35B A3B`
+## Non-Goals
 
-These are defaults, not rigid hardcoding. The role-mapping layer should remain configurable through the model registry and local runtime config.
+For now, do not rebuild:
 
-## WebSocket and UI Contract
+- job search
+- job application drafting
+- interview prep
+- domain-specific UI cards
+- silent state actions
+- autonomous external submissions or account actions
 
-WebSocket remains the canonical transport.
+Those can return later as generic-agent use cases once the broad tool loop is strong enough.
 
-### New client event
+## Review Question
 
-Add:
+Before adding any new domain workflow, ask:
 
-- `run.action`
+> Could the generic agent do this well with better tools, better prompts, and better memory?
 
-This event is used for explicit UI-triggered actions such as:
-
-- saving a job
-- selecting a job for drafting
-- preparing an application package
-
-### `run.action` payload
-
-Should support at least:
-
-- `action_type`
-- `job_slug`
-- optional `job_slugs`
-- optional `target_status`
-- optional `artifact_types`
-
-### Dynamic UI strategy
-
-Milestone 1 should use backend-planned, frontend-rendered UI.
-
-The backend may emit typed UI planning data, but the frontend remains deterministic and safe.
-
-#### Optional backend view payloads
-
-Extend `run.result` and `run.artifact` payloads with optional:
-
-- `view_blocks`
-- `actions`
-
-Initial `view_blocks` should be whitelisted, not arbitrary code:
-
-- `job_list`
-- `job_card`
-- `selection_panel`
-- `document_diff`
-- `document_canvas`
-- `notes_panel`
-- `status_summary`
-
-Initial typed `actions`:
-
-- `job.save`
-- `job.select_for_draft`
-- `job.prepare_application`
-- `job.open_source`
-
-State-only actions such as `job.save` and `job.select_for_draft` should be able to run silently and update existing UI state in place.
-
-Agentic actions such as `job.prepare_application` should start a visible run because they produce progress, results, and artifacts.
-
-## Result and Artifact Shapes
-
-### `job_search_results`
-
-Expand the existing payload so each job includes:
-
-- persistent `job_slug`
-- normalized job source data
-- suitability score or label
-- short suitability rationale
-- available actions
-- optional `view_blocks`
-
-### Additional result payloads
-
-- `saved_job_state`
-  - current state after a user action
-- `document_diff`
-  - structured change summary between a source template and a generated output
-- `draft_package_summary`
-  - final drafting summary for the selected job
-
-## Review and Artifact Visualization
-
-Milestone 1 should stop relying on prose-only summaries for application materials.
-
-### CV review output
-
-Emit typed comparison data for:
-
-- summary
-- technologies
-- expertise
-- experience sections
-
-Each section should support:
-
-- changed
-- kept
-- removed
-- unsupported
-- review notes
-
-### Cover letter and answers review output
-
-Emit:
-
-- text-canvas data
-- source inputs used
-- edits made
-- unsupported claims avoided
-- review notes
-
-### Frontend rendering expectations
-
-- search results render as selectable job cards
-- saved and selected job state renders as explicit status panels
-- CV output renders with structured diff review first, then expandable detail
-- cover letter and answers render in canvas-style review viewers
-
-## Phases and Parallel Delivery
-
-### Phase 0: Doc cleanup and milestone reset
-
-Ownership:
-
-- docs thread only
-
-Deliverables:
-
-- create `docs/milestones/MILESTONE_1_PLAN.md`
-- update `docs/START_HERE.md`
-- remove stale milestone references
-- delete outdated completed milestone plan docs, starting with `docs/milestones/MILESTONE_0_6_PLAN.md` if it exists
-
-### Phase 1: Contract and state foundation
-
-Ownership split:
-
-- backend thread A
-  - task routing
-  - result payloads
-  - action payloads
-  - file-backed state models
-- frontend thread A
-  - run-state support for `run.action`
-  - support for `view_blocks`
-  - support for `actions`
-  - support for new job result types
-
-Deliverables:
-
-- new job-domain models
-- new task agent selection path for job search
-- canonical `generated/jobs/` state layout
-- stable sample payloads for frontend rendering
-
-### Phase 2: Robust job search backend
-
-Ownership:
-
-- backend thread B only
-
-Deliverables:
-
-- ATS provider adapters for Greenhouse, Lever, and Ashby
-- `SearchSpec` parsing
-- lead normalization and dedupe
-- slot-aware parallel suitability review
-- persisted job catalog and lead folders
-- `job_search_results` emission with actions and view blocks
-
-### Phase 3: Search result UI and selection flow
-
-Ownership:
-
-- frontend thread B only
-
-Deliverables:
-
-- reusable job list and job card renderer
-- explicit UI actions for save, select, and prepare
-- deterministic renderers for backend-planned `view_blocks`
-- smooth operator-state updates while search and suitability work continues
-
-### Phase 4: Draft handoff and application generation
-
-Ownership split:
-
-- backend thread C
-  - saved job to application context handoff
-  - workflow upgrades
-- frontend thread C
-  - draft package renderer
-  - artifact panels
-  - diff and canvas rendering
-
-Deliverables:
-
-- job slug handoff into the application workflow
-- persisted drafting inputs sourced from saved lead records
-- generated artifact and comparison payloads
-- frontend views for CV diff and text-canvas review
-
-### Phase 5: Integration and polish
-
-Ownership:
-
-- light coordination only
-
-Deliverables:
-
-- end-to-end run from search brief to selected draft package
-- progressive telemetry across search and drafting
-- cleanup of duplicated or stale docs
-- final acceptance scenarios captured in docs
-
-## Testing Strategy
-
-Testing should remain integration-first.
-
-### Acceptance scenarios
-
-1. Search brief to ranked results
-   - user asks for a job search with motivation and constraints
-   - TARS acknowledges quickly
-   - backend routes to `job_search_agent`
-   - progress updates appear while provider fetches and suitability checks run
-   - structured job cards appear with persistent `job_slug` values
-
-2. Provider failure degradation
-   - one or more ATS providers fail or return weak data
-   - the run still completes with partial results
-   - workflow summary and progress remain truthful
-   - failed providers are reported without collapsing the whole run
-
-3. Deduplication and persistence
-   - duplicate jobs across providers or repeated searches are merged into one catalog record
-   - rerunning the same search updates existing records instead of creating noisy duplicates
-
-4. UI selection to drafting handoff
-   - selecting a saved job emits a typed `run.action`
-   - state changes to `selected_for_draft`
-   - application drafting starts using the saved job lead rather than a manual URL-only path
-
-5. Draft review surfaces
-   - CV diff metadata is emitted and rendered
-   - cover letter and answers render in review canvases
-   - unsupported claims and blocked inputs are surfaced as typed notes
-
-6. Parallel worker safety
-   - provider fetch and suitability workers can run concurrently
-   - shared job state remains consistent
-   - no duplicate writes or corrupted catalog files appear
-
-## Assumptions
-
-- Milestone 1 ships the first use case only: `search -> select -> draft`
-- the full scrum-board application manager UI is deferred
-- file-backed JSON and Markdown state is the only persistence layer in this milestone
-- search coverage is ATS-board-first, not broad open-web search
-- backend may use model assistance to plan UI blocks, but the frontend renders only a whitelisted deterministic component set
-- explicit UI actions are the primary selection mechanism
-- conversational fallbacks can be added later without changing the storage model
+If yes, improve the generic agent. If no, define the smallest reusable abstraction and keep it out of transport/UI catch-all files.

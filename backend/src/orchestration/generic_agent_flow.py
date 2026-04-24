@@ -1,50 +1,19 @@
+import json
 import logging
-import pprint
 from typing import Any
 
 from fastapi import WebSocket
 
+from src.agents.agent_utils import TOOL_MAP, TOOLS
 from src.app.ws_events import send_phase_changed, send_progress_update, send_response_delta, send_result_event, send_run_completed
-from src.agents.criteria_agent import extract_expected_outcomes
-from src.agents.executor_agent import execute_step
-from src.agents.planner_agent import plan_for_outcome
 from src.config.Model import Model
-from src.config.RuntimeEnvironment import runtime_environment
 from src.infer.ModelManager import ModelManager
 from src.message_structures.conversation import Conversation
 from src.message_structures.message import Message
 
 logger = logging.getLogger("uvicorn.error")
-RUNTIME_ENVIRONMENT = runtime_environment()
 
-MAX_PROMPT_RESULT_CHARS = 1200
-
-
-def compact_value_for_prompt(value, max_chars: int = MAX_PROMPT_RESULT_CHARS):
-    if isinstance(value, str):
-        stripped_value = value.strip()
-        if len(stripped_value) <= max_chars:
-            return stripped_value
-
-        preview = stripped_value[:max_chars].rstrip()
-        omitted_characters = len(stripped_value) - len(preview)
-        return (
-            f"{preview}\n"
-            f"[truncated for prompt size: omitted {omitted_characters} characters]"
-        )
-
-    if isinstance(value, list):
-        return [compact_value_for_prompt(item, max_chars) for item in value]
-
-    if isinstance(value, dict):
-        compacted_dict = {}
-
-        for key, item in value.items():
-            compacted_dict[key] = compact_value_for_prompt(item, max_chars)
-
-        return compacted_dict
-
-    return value
+MAX_TOOL_RESULT_CHARS = 5000
 
 
 async def handle_generic_query(
@@ -56,198 +25,261 @@ async def handle_generic_query(
     model: Model,
     model_manager: ModelManager,
 ):
-    logger.info("Routing query through generic agent flow")
+    logger.info("Routing query through generic tool agent")
     await send_phase_changed(
         websocket=websocket,
         run_id=run_id,
         session_id=session_id,
-        phase="planning",
-        detail="Breaking the task into expected outcomes.",
+        phase="thinking",
+        detail="Letting the generic agent decide whether tools are useful.",
     )
 
-    context: list[dict[str, Any]] = []
-    expected_outcomes = await extract_expected_outcomes(
-        query,
+    response = model_manager.ask_model(
         model,
-        model_manager,
+        [Message(role="user", content=build_tool_decision_prompt(query, conversation_history))],
+        tools=TOOLS,
+        tool_choice="auto",
     )
 
-    logger.info("Generic flow created %s expected outcomes", len(expected_outcomes))
-
-    for expected_outcome_index, expected_outcome in enumerate(expected_outcomes, 1):
-        await send_progress_update(
+    if isinstance(response, str) and response.strip():
+        await finish_generic_response(
+            final_response=response.strip(),
+            conversation_history=conversation_history,
             websocket=websocket,
             run_id=run_id,
             session_id=session_id,
-            status=f"Working on: {expected_outcome}",
-            details={"expected_outcome_index": expected_outcome_index},
         )
+        return
 
-        attempts = []
-        satisfied = False
+    tool_results = await execute_tool_calls(
+        tool_calls=response if isinstance(response, list) else [],
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+    )
 
-        while not satisfied and len(attempts) < 2:
-            steps = await plan_for_outcome(
-                query=query,
-                expected_outcome_index=expected_outcome_index,
-                expected_outcome=expected_outcome,
-                expected_outcomes=expected_outcomes,
-                prior_attempts=attempts,
-                context=context,
-                model=model,
-                model_manager=model_manager,
-            )
-
-            if not steps:
-                logger.info(
-                    "No new generic-agent steps required for outcome %s",
-                    expected_outcome_index,
-                )
-                break
-
-            execution_results = []
-
-            for step_index, step in enumerate(steps, 1):
-                result = await execute_step(
-                    step_index=step_index,
-                    step=step,
-                    steps=steps,
-                    context=context,
-                    execution_results=execution_results,
-                    model=model,
-                    model_manager=model_manager,
-                )
-
-                execution_results.append({
-                    "step": step["step"],
-                    "result": result,
-                })
-
-            check_prompt = f"""
-            Expected outcome:
-            "{expected_outcome}"
-
-            Evidence:
-            {compact_value_for_prompt(execution_results)}
-
-            Answer yes or no only.
-            """
-
-            check = model_manager.ask_model(
-                model,
-                [Message(role="user", content=check_prompt)],
-            ).lower()
-
-            if "no" in check:
-                attempts.append({
-                    "steps": steps,
-                    "evidence": execution_results,
-                })
-                continue
-
-            satisfied = True
-
-            condense_context_prompt = f"""
-            The user's query:
-            ---
-            {query}
-            ---
-
-            Has been broken down into a set of expected outcomes:
-            ---
-            {expected_outcomes}
-            ---
-
-            You have successfully executed the following steps to satisfy outcome {expected_outcome_index} - {expected_outcome}:
-            ---
-            {compact_value_for_prompt(execution_results)}
-            ---
-
-            Given the current context:
-            ---
-            {context}
-            ---
-
-            Summarise only your latest outcomes. Keep the context accurate and concise.
-            """
-
-            expected_outcome_summary = model_manager.ask_model(
-                model,
-                [Message(role="user", content=condense_context_prompt)],
-            )
-
-            context.append({
-                "expected_outcome": expected_outcome,
-                "satisfied": check,
-                "summary": expected_outcome_summary,
-            })
-
-        if satisfied:
-            continue
-
-        await send_result_event(
-            websocket=websocket,
-            run_id=run_id,
-            session_id=session_id,
-            result_type="partial_result",
-            payload={"status": "blocked", "expected_outcome": expected_outcome},
-            legacy_type="partial_result",
-            legacy_message=f"Could not fully satisfy: {expected_outcome}",
-        )
-
-    try:
-        RUNTIME_ENVIRONMENT.context_dump_path.parent.mkdir(parents = True, exist_ok = True)
-        with open(RUNTIME_ENVIRONMENT.context_dump_path, "w", encoding="utf-8") as file:
-            output_string = pprint.pformat(context)
-            file.write(output_string)
-    except Exception as exc:
-        logger.error("Failed to write generic flow context file: %s", exc)
-
-    summarise_step_prompt = f"""
-    Given the user's query:
-    "{query}"
-
-    And all the evidence collected:
-    "{context}"
-
-    That satisfied the following expected outcomes:
-    "{expected_outcomes}"
-
-    Provide an appropriate response. Try and embody a dry humoured robot like Tars from Interstellar when responding.
-    """
-
-    final_response_parts: list[str] = []
     await send_phase_changed(
         websocket=websocket,
         run_id=run_id,
         session_id=session_id,
         phase="responding",
-        detail="Summarising task results into the final reply.",
+        detail="Summarising tool results into the final reply.",
     )
 
-    async for chunk in model_manager.ask_model_stream(
+    final_response = model_manager.ask_model(
         model,
-        [Message(role="user", content=summarise_step_prompt)],
-    ):
-        if chunk.get("content"):
-            final_response_parts.append(chunk["content"])
+        [Message(role="user", content=build_final_response_prompt(query, conversation_history, tool_results))],
+    ).strip()
 
-        await send_response_delta(
+    if not final_response:
+        final_response = build_empty_tool_fallback(tool_results)
+
+    await finish_generic_response(
+        final_response=final_response,
+        conversation_history=conversation_history,
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+    )
+
+
+async def execute_tool_calls(
+    tool_calls: list[dict[str, Any]],
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+) -> list[dict[str, str]]:
+    tool_results = []
+
+    for tool_call in tool_calls[:4]:
+        if tool_call.get("type") != "function":
+            continue
+
+        function = tool_call.get("function", {})
+        tool_name = str(function.get("name", "")).strip()
+        handler = TOOL_MAP.get(tool_name)
+        if handler is None:
+            continue
+
+        arguments = parse_tool_arguments(function.get("arguments", {}))
+        await send_progress_update(
             websocket=websocket,
             run_id=run_id,
             session_id=session_id,
-            text=chunk.get("content", ""),
-            reasoning_text=chunk.get("reasoning_content", ""),
+            status=f"Using tool: {tool_name}",
+            details={
+                "tool_name": tool_name,
+                "arguments": arguments,
+            },
         )
 
-    final_response = "".join(final_response_parts).strip()
-    if final_response:
-        conversation_history.append_message(
-            Message(role="assistant", content=final_response),
+        try:
+            result = handler(**arguments)
+            status = "completed"
+        except Exception as error:
+            logger.exception("Generic tool call failed: %s(%s)", tool_name, arguments)
+            result = f"Error: {error}"
+            status = "failed"
+
+        compact_result = compact_text(str(result), MAX_TOOL_RESULT_CHARS)
+        tool_result = {
+            "tool_name": tool_name,
+            "status": status,
+            "arguments": json.dumps(arguments, ensure_ascii=False),
+            "result": compact_result,
+        }
+        tool_results.append(tool_result)
+
+        await send_result_event(
+            websocket=websocket,
+            run_id=run_id,
+            session_id=session_id,
+            result_type="tool_result",
+            payload=tool_result,
         )
 
+    return tool_results
+
+
+def parse_tool_arguments(arguments: Any) -> dict[str, Any]:
+    if isinstance(arguments, dict):
+        return arguments
+
+    if not isinstance(arguments, str):
+        return {}
+
+    try:
+        parsed_arguments = json.loads(arguments)
+    except json.JSONDecodeError:
+        return {}
+
+    return parsed_arguments if isinstance(parsed_arguments, dict) else {}
+
+
+async def finish_generic_response(
+    final_response: str,
+    conversation_history: Conversation,
+    websocket: WebSocket,
+    run_id: str,
+    session_id: int,
+):
+    conversation_history.append_message(
+        Message(role="assistant", content=final_response),
+    )
+
+    await send_response_delta(
+        websocket=websocket,
+        run_id=run_id,
+        session_id=session_id,
+        text=final_response,
+    )
     await send_run_completed(
         websocket=websocket,
         run_id=run_id,
         session_id=session_id,
     )
+
+
+def build_tool_decision_prompt(
+    query: str,
+    conversation_history: Conversation,
+) -> str:
+    return f"""
+    You are TARS, a concise local assistant with access to tools.
+
+    Decide whether a tool is useful. If a tool is useful, call the best tool with precise arguments.
+    If no tool is needed, answer directly.
+
+    Available tools:
+    - read_file(path): read a local text file
+    - write_file(path, content): write a local text file
+    - web_search(query, max_results): search the web for current or external information
+
+    Recent conversation:
+    ---
+    {format_recent_history(conversation_history)}
+    ---
+
+    User request:
+    ---
+    {query}
+    ---
+    """
+
+
+def build_final_response_prompt(
+    query: str,
+    conversation_history: Conversation,
+    tool_results: list[dict[str, str]],
+) -> str:
+    return f"""
+    You are TARS, a concise local assistant.
+
+    Answer the user's request using the tool observations. Be honest about gaps.
+    Keep the answer useful and direct.
+
+    Recent conversation:
+    ---
+    {format_recent_history(conversation_history)}
+    ---
+
+    User request:
+    ---
+    {query}
+    ---
+
+    Tool observations:
+    ---
+    {format_tool_results(tool_results)}
+    ---
+    """
+
+
+def format_recent_history(
+    conversation_history: Conversation,
+    max_messages: int = 6,
+) -> str:
+    visible_messages = [
+        message
+        for message in conversation_history.return_message_history()
+        if message.role in {"user", "assistant"}
+    ]
+    recent_messages = visible_messages[-max_messages:]
+
+    if not recent_messages:
+        return "(no prior conversation)"
+
+    return "\n".join(f"{message.role}: {message.content}" for message in recent_messages)
+
+
+def format_tool_results(tool_results: list[dict[str, str]]) -> str:
+    if not tool_results:
+        return "No tools were called."
+
+    formatted_results = []
+    for index, tool_result in enumerate(tool_results, start=1):
+        formatted_results.append(
+            "\n".join([
+                f"[{index}] {tool_result['tool_name']} - {tool_result['status']}",
+                f"Arguments: {tool_result['arguments']}",
+                f"Result:\n{tool_result['result']}",
+            ]),
+        )
+
+    return "\n\n".join(formatted_results)
+
+
+def compact_text(text: str, max_chars: int) -> str:
+    stripped_text = text.strip()
+    if len(stripped_text) <= max_chars:
+        return stripped_text
+
+    omitted_characters = len(stripped_text) - max_chars
+    return f"{stripped_text[:max_chars].rstrip()}\n[truncated: omitted {omitted_characters} characters]"
+
+
+def build_empty_tool_fallback(tool_results: list[dict[str, str]]) -> str:
+    if tool_results:
+        return "I used the available tools, but I could not turn the observations into a reliable answer."
+
+    return "I could not complete that with the currently available generic tools."

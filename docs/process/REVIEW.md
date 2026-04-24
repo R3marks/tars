@@ -28,24 +28,35 @@ Before saying code is ready for the user to review, Codex should run this gate w
 4. Check whether frontend-visible backend payloads still match `docs/architecture/WEBSOCKET_EVENT_CONTRACT.md`.
 5. Run backend compile checks for touched Python files.
 6. Run `npm run build` for frontend changes.
-7. Use Chrome DevTools MCP for frontend E2E review when available.
-8. If Chrome DevTools MCP is unavailable, say so clearly and use build checks plus user screenshots as fallback.
+7. Follow `docs/process/LIVE_APP_TESTING.md` for frontend and live app E2E review where relevant.
+8. If live browser testing is unavailable, say so clearly and use build checks plus user screenshots as fallback.
 9. Update docs if the change alters architecture, workflow, setup, contracts, or review process.
 10. Summarise residual risks honestly.
 
+## Docs-Only Review Gate
+
+For changes that only affect docs, ignored local config patterns, or agent instructions:
+
+1. Inspect `git diff --stat --find-renames`.
+2. Check that moved docs are recognized as renames where practical.
+3. Search for stale links to old doc paths.
+4. Search for secrets, private paths, personal names, machine-specific details, and local-only assumptions.
+5. Run `git diff --check`.
+6. Skip frontend builds and Python compile checks unless product code changed.
+7. Summarise what was reviewed and any residual risk.
+
+Useful searches:
+
+```powershell
+rg -n "docs/[A-Z_]+\.md|docs/Tars Design Doc\.md" AGENTS.md .codex docs
+rg -n "(T:|C:\\Users|DESKTOP-|api[_-]?key|token|password|secret|credential|cookie|BEGIN [A-Z ]*PRIVATE KEY)" AGENTS.md .codex docs .gitignore
+```
+
 ## Frontend E2E Expectations
 
-For frontend work, Codex should act like a copilot observer:
+For frontend work, Codex should act like a copilot observer and follow `docs/process/LIVE_APP_TESTING.md`.
 
-- open or inspect the running app through Chrome DevTools MCP
-- check console errors
-- inspect network activity where relevant
-- exercise the changed UI path
-- take or review screenshots
-- compare behaviour against the milestone plan
-- iterate until the UI is clear and stable enough for user review
-
-If browser control is not available in the current session, do not pretend it was tested.
+If browser control is not available in the current session, do not pretend it was tested. Record exactly what was verified instead.
 
 ## Security And Privacy Checks
 

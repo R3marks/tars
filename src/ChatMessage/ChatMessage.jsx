@@ -10,7 +10,6 @@ import {
   getReadableModelName,
   getTelemetryItems,
 } from "../telemetryDisplay.js";
-import JobSearchResultCard, { SavedJobStateCard } from "../JobResults/JobResults.jsx";
 import "./ChatMessage.css";
 
 function SectionTitle({ icon, children }) {
@@ -359,6 +358,39 @@ function PartialResultCard({ result }) {
   );
 }
 
+function ToolResultCard({ result }) {
+  const statusToneByStatus = {
+    completed: "success",
+    failed: "danger",
+  };
+  const resultText = String(result.result || "").trim();
+  const preview = resultText.length > 700
+    ? `${resultText.slice(0, 700).trim()}...`
+    : resultText;
+
+  return (
+    <article className="structured-card result-card result-card-wide">
+      <div className="card-topline">
+        <div className="card-eyebrow-wrap">
+          <AppIcon name="tool" className="card-eyebrow-icon" />
+          <p className="card-eyebrow">Tool Result</p>
+        </div>
+        <span className={`status-chip status-${statusToneByStatus[result.status] || "neutral"}`}>
+          {humanizeLabel(result.status || "unknown")}
+        </span>
+      </div>
+      <p className="card-title">{result.tool_name || "tool"}</p>
+      {result.arguments ? (
+        <p className="card-copy">
+          <code className="inline-code">{result.arguments}</code>
+        </p>
+      ) : null}
+      {preview ? <pre className="structured-details compact">{preview}</pre> : null}
+      <TelemetryMeta telemetry={result.telemetry} />
+    </article>
+  );
+}
+
 function UnknownResultCard({ result }) {
   return (
     <article className="structured-card result-card">
@@ -370,7 +402,7 @@ function UnknownResultCard({ result }) {
   );
 }
 
-function renderResultCard(result, index, run, onRunAction) {
+function renderResultCard(result, index) {
   const key = `${result.timestamp}-${result.result_type || "result"}-${index}`;
 
   if (result.result_type === "task_agent_selection") {
@@ -389,18 +421,14 @@ function renderResultCard(result, index, run, onRunAction) {
     return <PartialResultCard key={key} result={result} />;
   }
 
-  if (result.result_type === "job_search_results") {
-    return <JobSearchResultCard key={key} result={result} run={run} onAction={onRunAction} />;
-  }
-
-  if (result.result_type === "saved_job_state") {
-    return <SavedJobStateCard key={key} result={result} />;
+  if (result.result_type === "tool_result") {
+    return <ToolResultCard key={key} result={result} />;
   }
 
   return <UnknownResultCard key={key} result={result} />;
 }
 
-function ResultList({ results, run, onRunAction }) {
+function ResultList({ results }) {
   if (results.length === 0) {
     return null;
   }
@@ -409,7 +437,7 @@ function ResultList({ results, run, onRunAction }) {
     <section className="assistant-section assistant-section-shell results-shell">
       <SectionTitle icon="results">Results</SectionTitle>
       <div className="card-list">
-        {results.map((result, index) => renderResultCard(result, index, run, onRunAction))}
+        {results.map((result, index) => renderResultCard(result, index))}
       </div>
     </section>
   );
@@ -467,7 +495,7 @@ function ArtifactList({ artifacts }) {
   );
 }
 
-export default React.memo(function ChatMessage({ run, onRunAction }) {
+export default React.memo(function ChatMessage({ run }) {
   const shouldUseMarkdownFeatures = run.status === "completed";
 
   return (
@@ -499,7 +527,7 @@ export default React.memo(function ChatMessage({ run, onRunAction }) {
           ) : null}
 
           <TimelineList timelineItems={run.timelineItems || []} />
-          <ResultList results={run.results} run={run} onRunAction={onRunAction} />
+          <ResultList results={run.results} />
           <ArtifactList artifacts={run.artifacts} />
 
           {run.responseText ? (
